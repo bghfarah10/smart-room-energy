@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import datetime
+import json
 import joblib
 import numpy as np
 import pandas as pd
@@ -7,66 +8,18 @@ import requests
 import streamlit as st
 from tensorflow.keras.models import load_model
 
-# =====================================================================
-# 1. CONFIGURATION & DESIGN HAUTE LISIBILITÉ (TEXTE BLANC NET)
-# =====================================================================
+# 1. CONFIGURATION DE LA PAGE
 st.set_page_config(
     page_title="Smart Home AI Hub", page_icon="⚡", layout="wide"
 )
 
-st.markdown(
-    """
-<style>
-    /* Fond de page sombre et dégagement du haut */
-    .stApp {
-        background-color: #0B0E14;
-        color: #FFFFFF !important;
-        padding-top: 1.5rem;
-    }
-    /* Forcer tout le texte du markdown et des paragraphes en blanc éclatant */
-    p, span, label, div, h1, h2, h3, h4 {
-        color: #FFFFFF !important;
-    }
-    /* Cartes de métriques bien contrastées */
-    div[data-testid="stMetric"] {
-        background-color: #161B26;
-        border: 1px solid #2D3748;
-        padding: 15px;
-        border-radius: 12px;
-    }
-    div[data-testid="stMetricValue"] > div {
-        color: #00E676 !important;
-    }
-    /* Bulles de chat lisibles */
-    .stChatMessage {
-        background-color: #1A202C !important;
-        border: 1px solid #2D3748;
-        border-radius: 10px;
-        color: #FFFFFF !important;
-    }
-    .stChatMessage p {
-        color: #FFFFFF !important;
-        font-size: 15px;
-    }
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
-
-# =====================================================================
-# 2. CHARGEMENT AUTOMATIQUE DE LA CLÉ API (SECRETS OU SAISIE)
-# =====================================================================
+# 2. RÉCUPÉRATION DE LA CLÉ API GEMINI
 api_key = ""
 if "GEMINI_API_KEY" in st.secrets:
-    api_key = st.secrets["GEMINI_API_KEY"]
+    api_key = st.secrets["GEMINI_API_KEY"].strip().strip('"').strip("'")
 
 
-# =====================================================================
 # 3. CHARGEMENT DU MODÈLE DEEP LEARNING (LSTM)
-# =====================================================================
 @st.cache_resource
 def charger_ia():
     try:
@@ -93,22 +46,19 @@ def predire_base():
         return 2.55
 
 
-# =====================================================================
-# 4. PANNEAU DE CONTRÔLE LATÉRAL
-# =====================================================================
-st.sidebar.title("🎛️ Paramètres")
+# 4. BARRE LATÉRALE
+st.sidebar.title("⚙️ Paramètres")
 
-# Si la clé n'est pas dans les secrets, on affiche le champ
 if not api_key:
     api_key = st.sidebar.text_input(
         "🔑 Clé API Gemini",
         type="password",
-        help="Colle ta clé une fois ou ajoute-la dans Settings > Secrets",
+        help="Colle ta clé API Google AI Studio ici",
     )
 else:
-    st.sidebar.success("✅ Clé API Gemini connectée (automatique)")
+    st.sidebar.success("✅ Clé API Gemini configurée")
 
-st.sidebar.subheader("⚙️ Réseau Électrique")
+st.sidebar.markdown("---")
 seuil_max = st.sidebar.slider(
     "Puissance max autorisée (kW)", 3.0, 12.0, 6.0, 0.5
 )
@@ -121,13 +71,10 @@ st.sidebar.subheader("🔋 Voiture Électrique")
 soc_actuel = st.sidebar.slider("Batterie actuelle (%)", 5, 100, 35)
 soc_cible = st.sidebar.slider("Batterie cible (%)", 50, 100, 80)
 
-
-# =====================================================================
-# 5. CALCULS PHYSIQUES & ARBITRAGE
-# =====================================================================
+# 5. CALCULS PHYSIQUES & LOGIQUE
 p_base = predire_base()
 
-# Climatisation
+# Clim
 delta_temp = max(0.0, temp_interieure - temp_cible)
 duree_clim_min = round(delta_temp / 0.20) if delta_temp > 0 else 0
 p_clim = 2.0 if duree_clim_min > 0 else 0.0
@@ -145,24 +92,22 @@ p_ve = 3.7 if duree_charge_h > 0 else 0.0
 p_totale = round(p_base + p_clim + p_ve, 2)
 surcharge = p_totale > seuil_max
 
-
-# =====================================================================
-# 6. DASHBOARD PRINCIPAL
-# =====================================================================
+# 6. EN-TÊTE PRINCIPAL
 st.title("⚡ Smart Home Energy - Orchestrateur Intelligent")
 st.caption(
     "Système Multi-Agents autonome piloté par Deep Learning (LSTM) & Assistant IA"
 )
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("📊 Fond Maison (LSTM)", f"{p_base} kW")
-c2.metric("❄️ Climatisation", f"{p_clim} kW", f"{duree_clim_min} min requises")
-c3.metric(
+# 7. CARTES DE MÉTRIQUES
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("📊 Fond Maison (LSTM)", f"{p_base} kW")
+col2.metric("❄️ Climatisation", f"{p_clim} kW", f"{duree_clim_min} min requises")
+col3.metric(
     "🔋 Borne Recharge",
     f"{p_ve} kW",
     f"{duree_charge_h} h pour {soc_cible}%",
 )
-c4.metric(
+col4.metric(
     "⚡ Charge Globale",
     f"{p_totale} kW",
     f"{'+' if surcharge else ''}{round(p_totale - seuil_max, 2)} kW",
@@ -171,6 +116,7 @@ c4.metric(
 
 st.write("")
 
+# 8. JAUGE ET ARBITRAGE
 col_jauge, col_decision = st.columns([1, 1])
 
 with col_jauge:
@@ -181,7 +127,7 @@ with col_jauge:
             title={"text": "Puissance Totale vs Seuil (kW)"},
             gauge={
                 "axis": {"range": [None, 12]},
-                "bar": {"color": "#FF4B4B" if surcharge else "#00E676"},
+                "bar": {"color": "#E53935" if surcharge else "#43A047"},
                 "threshold": {
                     "line": {"color": "white", "width": 4},
                     "thickness": 0.8,
@@ -191,88 +137,73 @@ with col_jauge:
         )
     )
     fig.update_layout(
-        height=240,
+        height=250,
         margin=dict(l=20, r=20, t=30, b=20),
         paper_bgcolor="rgba(0,0,0,0)",
-        font={"color": "white"},
     )
     st.plotly_chart(fig, use_container_width=True)
 
 with col_decision:
-    st.markdown("### 🛡️ Statut de l'Arbitrage")
+    st.subheader("🛡️ Statut de l'Arbitrage")
     if surcharge:
         st.error(
-            f"🚨 **Dépassement détecté de {round(p_totale - seuil_max, 2)} kW**"
-        )
-        st.markdown(
-            f"""
-        - ❄️ **Climatisation prioritaire :** Maintenue pour garantir {temp_cible}°C à ton retour.
-        - 🔋 **Recharge décalée :** Reportée à **23:00** (heures creuses) pour soulager le réseau.
-        - 📉 **Puissance sécurisée :** **{round(p_base + p_clim, 2)} kW** (sous le seuil de {seuil_max} kW).
-        """
+            f"🚨 **Dépassement détecté de {round(p_totale - seuil_max, 2)} kW**\n\n"
+            f"- ❄️ **Climatisation prioritaire :** Maintenue pour garantir {temp_cible}°C à ton arrivée.\n"
+            f"- 🔋 **Recharge décalée :** Reportée à **23:00** (heures creuses) pour éviter la disjonction.\n"
+            f"- 📉 **Puissance finale sécurisée :** **{round(p_base + p_clim, 2)} kW** (sous le seuil de {seuil_max} kW)."
         )
     else:
-        st.success("✅ **Réseau Équilibré**")
-        st.markdown(
+        st.success(
+            "✅ **Réseau Équilibré**\n\n"
             "Toutes les demandes fonctionnent simultanément sans risque de disjonction."
         )
 
 st.divider()
 
 
-# =====================================================================
-# 7. ASSISTANT CONVERSATIONNEL (GEMINI AVEC RÔLE EXPLICITE)
-# =====================================================================
-def appeler_gemini(message_utilisateur, context_systeme, api_key):
-    cle = api_key.strip()
+# 9. ASSISTANT CONVERSATIONNEL GEMINI SANS AUCUN SILENCE D'ERREUR
+def interroger_gemini(message_utilisateur, api_key_val):
+    cle = api_key_val.strip().strip('"').strip("'")
     if not cle:
-        return "💡 Veuillez entrer votre clé API Gemini pour discuter avec l'assistant."
+        return "⚠️ Aucune clé API trouvée. Renseigne ta clé dans la barre latérale ou dans Settings > Secrets."
 
-    prompt_total = (
-        f"{context_systeme}\n\n"
-        f"Farah demande : '{message_utilisateur}'\n"
-        f"Réponds directement à Farah de façon naturelle et vivante :"
+    contexte = (
+        f"Tu es l'Orchestrateur IA de la maison connectée de Farah. Réponds en français de façon vivante et concise.\n"
+        f"Voici l'état actuel de sa maison :\n"
+        f"- Conso de fond (Deep Learning LSTM) : {p_base} kW\n"
+        f"- Seuil disjoncteur : {seuil_max} kW\n"
+        f"- Climatisation : {p_clim} kW (pièce à {temp_interieure}°C, consigne {temp_cible}°C)\n"
+        f"- Voiture électrique : {soc_actuel}% de batterie, objectif {soc_cible}%, borne 3.7 kW\n"
+        f"- Puissance globale : {p_totale} kW (Surcharge : {'OUI' if surcharge else 'NON'})\n"
+        f"- Décision : {'Clim maintenue, recharge voiture reportée à 23h' if surcharge else 'Tout fonctionne ensemble'}\n\n"
+        f"Règles :\n"
+        f"1. Si Farah pose une question hors sujet (ex: politique, président des USA, sport), réponds-y clairement et poliment en une phrase, puis termine par un clin d'œil sur la sécurité électrique de sa maison.\n"
+        f"2. Si elle demande combien de temps pour 100% de batterie, calcule le temps exact (capacité 50 kWh, borne 3.7 kW, rendement 90%).\n"
     )
 
-    # Format JSON officiel requis par l'API Gemini v1beta
-    payload = {
-        "contents": [{"role": "user", "parts": [{"text": prompt_total}]}]
-    }
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={cle}"
     headers = {"Content-Type": "application/json"}
+    body = {
+        "contents": [
+            {"parts": [{"text": f"{contexte}\n\nQuestion de Farah : {message_utilisateur}"}]}
+        ]
+    }
 
-    # Modèles récents officiels Google AI Studio
-    for modele_nom in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{modele_nom}:generateContent?key={cle}"
-        try:
-            r = requests.post(url, headers=headers, json=payload, timeout=8)
-            if r.status_code == 200:
-                return r.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception:
-            continue
+    try:
+        res = requests.post(url, headers=headers, json=body, timeout=12)
+        if res.status_code == 200:
+            data = res.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        else:
+            # En cas de problème Google, on affiche l'erreur RÉELLE pour savoir ce qui cloche
+            try:
+                err_detail = res.json().get("error", {}).get("message", res.text)
+            except Exception:
+                err_detail = res.text
+            return f"❌ Erreur API Google (Code {res.status_code}) : {err_detail}"
+    except Exception as e:
+        return f"❌ Erreur de connexion réseau : {str(e)}"
 
-    # Si Google ne répond pas, réponse calculée dynamique
-    m = message_utilisateur.lower()
-    if "100" in m or "batterie" in m:
-        h = round((50.0 * (100 - soc_actuel) / 100.0 / 0.90) / 3.7, 1)
-        return f"Farah, avec ta batterie à {soc_actuel}%, il faudra {h}h de charge. En démarrant à 23h00, ta voiture sera à 100% vers {int(23+h)%24:02d}h demain matin !"
-    else:
-        return f"Je veille sur ta maison ! La consommation totale actuelle est de {p_totale} kW pour un seuil souscrit de {seuil_max} kW."
-
-
-contexte_ia = f"""
-Tu es l'Orchestrateur IA de la maison connectée de Farah.
-Données en direct :
-- Conso de base estimée par Deep Learning LSTM : {p_base} kW
-- Limite compteur : {seuil_max} kW | Puissance totale calculée : {p_totale} kW
-- Chambre : {temp_interieure}°C (Consigne : {temp_cible}°C, Clim : {duree_clim_min} min requises)
-- Véhicule : {soc_actuel}% (Objectif : {soc_cible}%, Borne 3.7 kW, Batterie 50 kWh)
-- Situation : {'Surcharge détectée : Climatisation maintenue, voiture décalée à 23h00' if surcharge else 'Réseau stable : recharge et climatisation simultanées'}
-
-Directives :
-1. Réponds en français de manière concise, vivante et professionnelle.
-2. Si la question est hors sujet (ex: président, actualité), réponds brièvement avec gentillesse avant de faire un petit clin d'œil sur la sécurité électrique de la maison.
-3. Si elle pose une question sur sa voiture, fais les calculs de durée en direct.
-"""
 
 st.subheader("💬 Assistant Orchestrateur Dédié")
 
@@ -288,13 +219,13 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-if prompt := st.chat_input("Votre message..."):
+if prompt := st.chat_input("Pose ta question ici..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    with st.spinner("L'Orchestrateur analyse votre demande..."):
-        reponse = appeler_gemini(prompt, contexte_ia, api_key)
+    with st.spinner("Réflexion en cours..."):
+        reponse = interroger_gemini(prompt, api_key)
 
     st.session_state.messages.append({"role": "assistant", "content": reponse})
     with st.chat_message("assistant"):
