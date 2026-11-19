@@ -8,10 +8,10 @@ import streamlit as st
 from tensorflow.keras.models import load_model
 
 # =====================================================================
-# 1. CONFIGURATION PLEIN ÉCRAN & DESIGN MINIMALISTE (BEIGE & BLEU)
+# 1. STYLE "BEIGE & BLUE PROFESSIONAL MINIMALIST COMPANY"
 # =====================================================================
 st.set_page_config(
-    page_title="Smart Home Hub • Executive Overview",
+    page_title="Smart Home Orchestration",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -20,80 +20,88 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-    
-    html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', sans-serif;
+    /* Palette Beige & Blue Minimalist */
+    :root {
+        --bg-beige: #F9F7F2;
+        --card-bg: #FFFFFF;
+        --border-beige: #EADBCC;
+        --navy-dark: #0D1F2D;
+        --navy-accent: #1D3557;
+        --navy-sub: #457B9D;
+        --text-muted: #6C757D;
+        --terracotta: #BA3B2A;
+        --sage-green: #2B6E4E;
     }
-    
-    /* Fond principal Beige Crème */
+
+    /* Fond principal beige minimaliste */
     .stApp {
-        background-color: #F8F6F2;
-        color: #0F1E36;
+        background-color: var(--bg-beige);
+        color: var(--navy-dark);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* Réduction drastique des marges pour tenir en 1 seule page */
-    .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 0.5rem !important;
-        padding-left: 2rem !important;
-        padding-right: 2rem !important;
-        max-width: 100% !important;
-    }
-
-    /* Barre latérale Bleu Marine */
-    section[data-testid="stSidebar"] {
-        background-color: #0F1E36 !important;
-        border-right: 1px solid #1E2D4A;
-    }
-    section[data-testid="stSidebar"] * {
-        color: #F8F6F2 !important;
-    }
-    section[data-testid="stSidebar"] .stSlider > div > div > div > div {
-        background-color: #C5A880 !important;
-    }
-
-    /* Cartes Métriques compactes */
-    div[data-testid="stMetric"] {
-        background-color: #FFFFFF;
-        border: 1px solid #E5E0D8;
-        border-radius: 8px;
-        padding: 10px 14px;
-        box-shadow: 0 1px 3px rgba(15, 30, 54, 0.04);
-    }
-    div[data-testid="stMetric"] label {
-        color: #64748B !important;
-        font-size: 0.75rem !important;
-        font-weight: 600 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.03em;
-    }
-    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
-        color: #0F1E36 !important;
+    /* Titres et en-têtes */
+    h1, h2, h3 {
+        color: var(--navy-dark) !important;
         font-weight: 700 !important;
-        font-size: 1.35rem !important;
+        letter-spacing: -0.5px;
     }
 
-    /* Bordures des conteneurs natifs */
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        background-color: #FFFFFF;
-        border: 1px solid #E5E0D8 !important;
-        border-radius: 10px !important;
-        padding: 12px 14px !important;
-        box-shadow: 0 1px 4px rgba(15, 30, 54, 0.03) !important;
+    /* Cartes utilisateur inversées (Human First UX) */
+    .user-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-beige);
+        border-radius: 14px;
+        padding: 22px 20px;
+        box-shadow: 0 4px 15px rgba(13, 31, 45, 0.03);
+        transition: transform 0.2s ease;
+        height: 100%;
+    }
+    .user-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(13, 31, 45, 0.06);
     }
 
-    /* Messages du chat compacts */
-    .stChatMessage {
-        background-color: #FAF8F5 !important;
-        border: 1px solid #EAE5DD !important;
-        border-radius: 8px !important;
-        padding: 8px 12px !important;
-        margin-bottom: 6px !important;
-        font-size: 0.88rem !important;
+    .card-category {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        font-weight: 700;
+        color: var(--navy-sub);
+        margin-bottom: 8px;
     }
 
-    #MainMenu, footer, header {visibility: hidden;}
+    .card-human-main {
+        font-size: 1.7rem;
+        font-weight: 800;
+        color: var(--navy-dark);
+        line-height: 1.2;
+        margin-bottom: 8px;
+    }
+
+    .card-technical-sub {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        background: #F4EFE6;
+        padding: 4px 10px;
+        border-radius: 20px;
+        display: inline-block;
+        font-weight: 500;
+    }
+
+    /* Boîte de décision */
+    .decision-panel {
+        background: var(--card-bg);
+        border: 1px solid var(--border-beige);
+        border-radius: 14px;
+        padding: 22px;
+        box-shadow: 0 4px 15px rgba(13, 31, 45, 0.03);
+    }
+
+    /* Nettoyage de l'interface par défaut */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
 </style>
 """,
     unsafe_allow_html=True,
@@ -101,7 +109,7 @@ st.markdown(
 
 
 # =====================================================================
-# 2. CHARGEMENT DE L'IA
+# 2. IA DEEP LEARNING (LSTM)
 # =====================================================================
 @st.cache_resource
 def charger_ia():
@@ -109,14 +117,14 @@ def charger_ia():
         model = load_model("modele_lstm_energie.keras")
         scaler = joblib.load("scaler.pkl")
         return model, scaler
-    except Exception:
+    except:
         return None, None
 
 
 modele, scaler = charger_ia()
 
 
-def predire_base_foyer():
+def predire_base():
     try:
         df = pd.read_csv(
             "consommation_horaire_propre.csv", index_col="datetime"
@@ -125,275 +133,310 @@ def predire_base_foyer():
         scaled = scaler.transform(sample.reshape(-1, 1))
         pred_scaled = modele.predict(scaled.reshape(1, 24, 1), verbose=0)
         return round(float(scaler.inverse_transform(pred_scaled)[0][0]), 2)
-    except Exception:
+    except:
         return 2.55
 
 
 # =====================================================================
-# 3. PANNEAU DE CONTRÔLE (SIDEBAR)
+# 3. BARRE DE CONTRÔLE (SIDEBAR PROPRIÉTAIRE)
 # =====================================================================
 with st.sidebar:
-    st.markdown("### 🏛️ Centre de Contrôle")
-    st.caption("Paramètres du Foyer")
-    st.markdown("---")
+    st.markdown("### 🎛️ Paramètres de vie")
 
-    cle_secrete = st.secrets.get("GEMINI_API_KEY", "")
+    # Clé API avec prise en charge automatique des secrets Streamlit
+    cle_par_defaut = (
+        st.secrets["GEMINI_API_KEY"] if "GEMINI_API_KEY" in st.secrets else ""
+    )
     api_key = st.text_input(
-        "Clé API Gemini (Optionnel)",
-        value=cle_secrete,
+        "🔑 Clé Gemini (Google AI Studio)",
+        value=cle_par_defaut,
         type="password",
-        help="Connecte directement le LLM pour répondre à toute question.",
     )
 
-    seuil_max = st.slider("Souscription Disjoncteur (kW)", 3.0, 12.0, 6.0, 0.5)
+    st.markdown("---")
+    st.markdown("#### ⚡ Contrat d'électricité")
+    seuil_max = st.slider("Disjoncteur max (kW)", 3.0, 12.0, 6.0, 0.5)
+
+    st.markdown("#### ❄️ Confort Chambre")
     temp_interieure = st.slider(
-        "Température Ambiante (°C)", 20.0, 38.0, 30.0, 0.5
+        "Température actuelle (°C)", 20.0, 38.0, 30.9, 0.1
     )
-    temp_cible = st.slider("Consigne Souhaitée (°C)", 18.0, 26.0, 21.0, 0.5)
-    soc_actuel = st.slider("Batterie Actuelle (%)", 5, 100, 35, 5)
-    soc_cible = st.slider("Batterie Cible (%)", 50, 100, 80, 5)
+    temp_cible = st.slider("Température idéale (°C)", 18.0, 26.0, 21.0, 0.5)
+
+    st.markdown("#### 🔋 Voiture Électrique")
+    soc_actuel = st.slider("Niveau batterie actuel (%)", 5, 100, 35, 5)
+    soc_cible = st.slider("Objectif pour demain (%)", 50, 100, 80, 5)
 
 
 # =====================================================================
-# 4. CALCULS EN TEMPS RÉEL
+# 4. MOTEUR PHYSIQUE & CALCULS
 # =====================================================================
-p_base = predire_base_foyer()
+p_base = predire_base()
 
-# Clim
-delta_t = max(0.0, temp_interieure - temp_cible)
-duree_clim_min = round(delta_t / 0.20) if delta_t > 0 else 0
+# 1. Climatisation
+delta_temp = max(0.0, temp_interieure - temp_cible)
+duree_clim_min = round(delta_temp / 0.20) if delta_temp > 0 else 0
 p_clim = 2.0 if duree_clim_min > 0 else 0.0
-heure_demarrage_clim = (
-    datetime.strptime("18:00", "%H:%M") - timedelta(minutes=duree_clim_min)
+
+# Calcul de l'heure d'allumage pour être prêt à 18h00
+heure_retour_consigne = datetime.strptime("18:00", "%H:%M")
+heure_allumage_clim = (
+    heure_retour_consigne - timedelta(minutes=duree_clim_min)
 ).strftime("%H:%M")
 
-# Voiture (50 kWh, borne 3.7 kW)
-capa_kwh = 50.0
-puiss_borne = 3.7
-energie_cible_kwh = (
-    capa_kwh * max(0, soc_cible - soc_actuel) / 100.0 / 0.90
+# 2. Voiture (50 kWh, borne 3.7 kW)
+capacite_batterie_kwh = 50.0
+energie_manquante_kwh = (
+    capacite_batterie_kwh * max(0, soc_cible - soc_actuel) / 100.0 / 0.90
 )
-duree_charge_cible_h = (
-    round(energie_cible_kwh / puiss_borne, 2) if energie_cible_kwh > 0 else 0.0
+duree_charge_h = (
+    round(energie_manquante_kwh / 3.7, 2) if energie_manquante_kwh > 0 else 0.0
 )
+p_ve = 3.7 if duree_charge_h > 0 else 0.0
 
-energie_100_kwh = capa_kwh * max(0, 100 - soc_actuel) / 100.0 / 0.90
-duree_charge_100_h = (
-    round(energie_100_kwh / puiss_borne, 2) if energie_100_kwh > 0 else 0.0
+# 3. Calculs globaux
+p_totale = round(p_base + p_clim + p_ve, 2)
+surcharge = p_totale > seuil_max
+surcroit_evite = round(p_totale - seuil_max, 2)
+
+# Calcul temps pour 100% de batterie
+duree_100_h = round(
+    (capacite_batterie_kwh * (100 - soc_actuel) / 100.0 / 0.90) / 3.7, 1
 )
-p_ve = puiss_borne if duree_charge_cible_h > 0 else 0.0
-
-p_totale_brute = round(p_base + p_clim + p_ve, 2)
-surcharge = p_totale_brute > seuil_max
-surcroit = round(p_totale_brute - seuil_max, 2) if surcharge else 0.0
-
-heure_debut_charge = "23:00" if surcharge else "Immédiate (18:00)"
-minutes_100 = int(duree_charge_100_h * 60)
-heure_fin_100 = (
-    datetime.strptime("23:00" if surcharge else "18:00", "%H:%M")
-    + timedelta(minutes=minutes_100)
-).strftime("%H:%M")
 
 
 # =====================================================================
-# 5. DASHBOARD EN UNE SEULE PAGE (AUCUN SCROLL)
+# 5. HEADER MINIMALISTE ENTREPRISE
 # =====================================================================
-
-# Titre compact
 st.markdown(
     """
-<div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;">
-    <h3 style="margin:0; color:#0F1E36; font-size:1.35rem; font-weight:700;">Smart Home Energy Orchestration</h3>
-    <span style="font-size:0.8rem; color:#64748B;">Supervision prédictive multi-agents & Deep Learning (LSTM)</span>
+<div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 25px;">
+    <div>
+        <h2 style="margin: 0; color: #0D1F2D;">Smart Home Energy Orchestration</h2>
+        <p style="margin: 4px 0 0 0; color: #6C757D; font-size: 0.95rem;">
+            Supervision intelligente & arbitrage préventif par Deep Learning
+        </p>
+    </div>
+    <div style="text-align: right;">
+        <span style="background: #E8EEF5; color: #1D3557; padding: 6px 14px; border-radius: 20px; font-weight: 600; font-size: 0.85rem;">
+            Système Multi-Agents Actif
+        </span>
+    </div>
 </div>
 """,
     unsafe_allow_html=True,
 )
 
-# Ligne 1 : Les 4 KPIs
+
+# =====================================================================
+# 6. CARTES INVERSÉES : L'HUMAIN EN GROS, LES kW EN SOUS-TITRE
+# =====================================================================
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Prévision Base (LSTM)", f"{p_base:.2f} kW", "Charge passive")
-c2.metric("Climatisation", f"{p_clim:.2f} kW", f"{duree_clim_min} min nécessaires")
-c3.metric(
-    "Borne Recharge",
-    f"{p_ve:.2f} kW",
-    f"{duree_charge_cible_h} h vers {soc_cible}%",
-)
-c4.metric(
-    "Puissance Appelée",
-    f"{p_totale_brute:.2f} kW",
-    f"{'+' if surcharge else ''}{surcroit:.2f} kW vs souscription",
-    delta_color="inverse",
-)
+
+with c1:
+    st.markdown(
+        f"""
+    <div class="user-card">
+        <div class="card-category">🏠 Maison en arrière-plan</div>
+        <div class="card-human-main">Activité Calme</div>
+        <div class="card-technical-sub">⚡ Prévision IA : {p_base} kW</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+with c2:
+    st.markdown(
+        f"""
+    <div class="user-card">
+        <div class="card-category">❄️ Confort Chambre</div>
+        <div class="card-human-main">{duree_clim_min} min requises</div>
+        <div class="card-technical-sub">🎯 Prête à 18h00 ({p_clim} kW)</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+with c3:
+    st.markdown(
+        f"""
+    <div class="user-card">
+        <div class="card-category">🚗 Borne Véhicule</div>
+        <div class="card-human-main">Prête à 07h30</div>
+        <div class="card-technical-sub">🔋 {duree_charge_h}h de charge vers {soc_cible}% ({p_ve} kW)</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+with c4:
+    statut_reseau = "Surcharge Évitée" if surcharge else "Réseau Équilibré"
+    badge_color = "#BA3B2A" if surcharge else "#2B6E4E"
+    st.markdown(
+        f"""
+    <div class="user-card" style="border-left: 4px solid {badge_color};">
+        <div class="card-category">🛡️ Sécurité Réseau</div>
+        <div class="card-human-main" style="color: {badge_color};">{statut_reseau}</div>
+        <div class="card-technical-sub">⚡ Plafond max : {seuil_max} kW (Demande : {p_totale} kW)</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
 st.write("")
 
-# Ligne 2 : Deux colonnes principales
-col_gauche, col_droite = st.columns([1.1, 1.2])
 
-# COLONNE GAUCHE : JAUGE + ARBITRAGE
-with col_gauche:
-    with st.container(border=True):
-        # JAUGE CORRIGÉE (Chiffre 100% centré, aucun texte coupé)
-        fig = go.Figure(
-            go.Indicator(
-                mode="gauge+number",
-                value=p_totale_brute,
-                number={
-                    "valueformat": ".2f",
-                    "suffix": " kW",
-                    "font": {
-                        "size": 24,
-                        "color": "#0F1E36",
-                        "family": "Plus Jakarta Sans",
-                    },
+# =====================================================================
+# 7. SECTION SUPERVISION & ARBITRAGE (JAUGE BLEU NUIT & BEIGE)
+# =====================================================================
+col_jauge, col_assistant = st.columns([1, 1.3], gap="medium")
+
+with col_jauge:
+    st.markdown(
+        """
+    <div class="decision-panel">
+        <h4 style="margin-top: 0; color: #0D1F2D;">⚡ Équilibre de Charge du Foyer</h4>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    # Jauge Plotly avec les tons Beige & Navy
+    fig = go.Figure(
+        go.Indicator(
+            mode="gauge+number",
+            value=p_totale,
+            number={"suffix": " kW", "font": {"color": "#0D1F2D", "size": 38}},
+            gauge={
+                "axis": {
+                    "range": [None, 12],
+                    "tickcolor": "#0D1F2D",
+                    "tickfont": {"color": "#6C757D"},
                 },
-                domain={"x": [0, 1], "y": [0, 1]},
-                gauge={
-                    "axis": {
-                        "range": [0, 12],
-                        "tickwidth": 1,
-                        "tickcolor": "#CBD5E1",
-                        "nticks": 7,
-                    },
-                    "bar": {"color": "#B91C1C" if surcharge else "#1B4D3E"},
-                    "bgcolor": "#F4EFEA",
-                    "borderwidth": 0,
-                    "steps": [
-                        {"range": [0, seuil_max], "color": "#EAE5DC"},
-                        {"range": [seuil_max, 12], "color": "#FADBD8"},
-                    ],
-                    "threshold": {
-                        "line": {"color": "#0F1E36", "width": 3},
-                        "thickness": 0.8,
-                        "value": seuil_max,
-                    },
+                "bar": {"color": "#BA3B2A" if surcharge else "#1D3557"},
+                "bgcolor": "#EADBCC",
+                "borderwidth": 0,
+                "threshold": {
+                    "line": {"color": "#0D1F2D", "width": 4},
+                    "thickness": 0.8,
+                    "value": seuil_max,
                 },
-            )
+            },
         )
-        fig.update_layout(
-            height=160,
-            margin=dict(l=15, r=15, t=10, b=10),
-            paper_bgcolor="rgba(0,0,0,0)",
-        )
-        st.plotly_chart(fig, use_container_width=True)
+    )
+    fig.update_layout(
+        height=200,
+        margin=dict(l=20, r=20, t=10, b=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
-        st.markdown("<hr style='margin: 6px 0;'>", unsafe_allow_html=True)
-
-        # BLOC DÉCISION
-        if surcharge:
-            st.markdown(
-                f"""
-            <div style="font-size:0.85rem; line-height:1.45;">
-                <span style="color:#B91C1C; font-weight:700; text-transform:uppercase; font-size:0.75rem;">
-                    ● Risque de Surcharge Évité (+{surcroit:.2f} kW)
-                </span>
-                <p style="margin: 4px 0 6px 0; color:#334155;">
-                    La demande ({p_totale_brute:.2f} kW) dépasse le disjoncteur ({seuil_max:.1f} kW).
-                </p>
-                <ul style="margin:0; padding-left:18px; color:#0F1E36;">
-                    <li><strong>Climatisation :</strong> Démarrage à <strong>{heure_demarrage_clim}</strong> (garantit {temp_cible}°C à 18h).</li>
-                    <li><strong>Voiture :</strong> Recharge décalée à <strong>23h00</strong> (heures creuses).</li>
-                    <li><strong>Ligne sécurisée :</strong> <strong>{p_base + p_clim:.2f} kW</strong>.</li>
-                </ul>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f"""
-            <div style="font-size:0.85rem; line-height:1.45;">
-                <span style="color:#1B4D3E; font-weight:700; text-transform:uppercase; font-size:0.75rem;">
-                    ● Réseau Stable (Marge disponible : {seuil_max - p_totale_brute:.2f} kW)
-                </span>
-                <p style="margin: 4px 0 0 0; color:#334155;">
-                    La puissance globale ({p_totale_brute:.2f} kW) respecte votre abonnement. La climatisation et la borne fonctionnent en simultané.
-                </p>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-# COLONNE DROITE : CHATBOT FIXE (AUCUN DÉBORDEMENT)
-with col_droite:
-    with st.container(border=True):
+    # Explication humaine de l'arbitrage
+    if surcharge:
         st.markdown(
-            """
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <strong style="color:#0F1E36; font-size:0.92rem;">Assistant Exécutif de Supervision</strong>
-            <span style="font-size:0.75rem; color:#64748B;">Connecté aux Agents</span>
+            f"""
+        <div style="background: #FCF4F2; border-left: 4px solid #BA3B2A; padding: 12px 14px; border-radius: 8px; font-size: 0.9rem; color: #4A1510;">
+            <strong>Protection active (+{surcroit_evite} kW évités) :</strong><br>
+            • ❄️ <strong>Climatisation :</strong> Démarrage à <strong>{heure_allumage_clim}</strong> pour que votre chambre soit à {temp_cible}°C à 18h.<br>
+            • 🔋 <strong>Voiture :</strong> Recharge décalée à <strong>23h00</strong> en heures creuses pour soulager la ligne.<br>
+            • 📉 <strong>Puissance effective ramenée à :</strong> <strong>{round(p_base + p_clim, 2)} kW</strong> (aucun risque de coupure).
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f"""
+        <div style="background: #F0F7F4; border-left: 4px solid #2B6E4E; padding: 12px 14px; border-radius: 8px; font-size: 0.9rem; color: #143525;">
+            <strong>Situation nominale :</strong><br>
+            La puissance appelée ({p_totale} kW) reste sous votre plafond ({seuil_max} kW). La climatisation et la borne fonctionnent en parallèle.
         </div>
         """,
             unsafe_allow_html=True,
         )
 
-        # Zone de chat à défilement INTERNE (ne fait pas défiler la page !)
-        chat_box = st.container(height=265)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        if "messages" not in st.session_state:
-            st.session_state.messages = [
-                {
-                    "role": "assistant",
-                    "content": "Bonjour Farah. Je supervise en direct l'énergie du foyer. Posez-moi vos questions sur la recharge, le confort ou l'arbitrage.",
-                }
-            ]
 
-        for msg in st.session_state.messages:
-            with chat_box.chat_message(msg["role"]):
-                st.markdown(msg["content"])
+# =====================================================================
+# 8. ASSISTANT EXÉCUTIF CONVERSATIONNEL (GEMINI LLM)
+# =====================================================================
+with col_assistant:
+    st.markdown(
+        """
+    <div class="decision-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h4 style="margin: 0; color: #0D1F2D;">💬 Assistant Exécutif de Supervision</h4>
+            <span style="font-size: 0.8rem; color: #6C757D;">Orchestrateur Connecté</span>
+        </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
-        # Champ de texte avec placeholder neutre (plus d'exemple sur la voiture !)
-        if prompt := st.chat_input("Écrivez votre message..."):
-            st.session_state.messages.append(
-                {"role": "user", "content": prompt}
-            )
-            with chat_box.chat_message("user"):
-                st.markdown(prompt)
+    def appeler_gemini(message_utilisateur, context_systeme, key):
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key}"
+        headers = {"Content-Type": "application/json"}
+        prompt_complet = (
+            f"{context_systeme}\n\n"
+            f"Message de Farah : '{message_utilisateur}'\n"
+            f"Ta réponse :"
+        )
+        data = {"contents": [{"parts": [{"text": prompt_complet}]}]}
 
-            # Moteur conversationnel
-            q = prompt.lower().strip()
+        try:
+            r = requests.post(url, headers=headers, json=data, timeout=10)
+            if r.status_code == 200:
+                return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+            return f"Service temporairement indisponible (Code {r.status_code})."
+        except Exception as e:
+            return f"Erreur de communication : {str(e)}"
 
-            if "100" in q or (
-                "plein" in q
-                and any(w in q for w in ["voiture", "batterie", "ve"])
-            ):
-                rep = (
-                    f"Pour atteindre **100%**, il reste **{energie_100_kwh:.1f} kWh** à injecter (soit **{duree_charge_100_h} h** sur borne 3.7 kW).\n\n"
-                    f"- Début de charge : **{heure_debut_charge}**\n"
-                    f"- Disponibilité à 100% : vers **{heure_fin_100}**."
-                )
-            elif any(
-                w in q for w in ["voiture", "batterie", "charge", "recharge"]
-            ):
-                rep = (
-                    f"Batterie à **{soc_actuel}%** (cible : **{soc_cible}%**, durée : **{duree_charge_cible_h} h**).\n"
-                    f"Planning : {'Différée à 23h00 (heures creuses)' if surcharge else 'Charge immédiate'}. Prête pour 07h30."
-                )
-            elif any(
-                w in q for w in ["clim", "chambre", "temperature", "chaleur"]
-            ):
-                rep = (
-                    f"Pièce à **{temp_interieure}°C** (consigne {temp_cible}°C).\n"
-                    f"Temps estimé : **{duree_clim_min} min**. Démarrage à **{heure_demarrage_clim}** pour un confort parfait à 18h00."
-                )
-            elif any(w in q for w in ["tunisie", "bourguiba", "president"]):
-                rep = (
-                    "Le premier président de la République tunisienne est **Habib Bourguiba** (proclamé le 25 juillet 1957).\n\n"
-                    "💡 *Note énergétique :* Les équipements du foyer sont sous contrôle."
-                )
-            elif any(
-                w in q for w in ["ia", "lstm", "modele", "deep learning"]
-            ):
-                rep = f"Réseau Deep Learning **LSTM** autorégressif (MAE: 0.60 kW) prédisant la charge passive du foyer ({p_base:.2f} kW)."
-            else:
-                rep = (
-                    f"J'ai bien noté votre demande : *« {prompt} »*.\n"
-                    "Je reste à votre disposition pour le suivi de la batterie, le confort thermique ou l'arbitrage du réseau."
-                )
+    contexte_ia = f"""
+    Tu es l'Orchestrateur de Gestion Énergétique de Farah. Ton rôle est d'assurer son confort, ses trajets et la sécurité de sa maison.
+    Adopte un ton élégant, bienveillant, professionnel et concis (comme un concierge privé d'hôtel de luxe ou un gestionnaire d'énergie exécutif).
 
-            st.session_state.messages.append(
-                {"role": "assistant", "content": rep}
-            )
-            with chat_box.chat_message("assistant"):
-                st.markdown(rep)
+    DONNÉES DU FOYER EN DIRECT :
+    - Consommation passive prédite (LSTM Deep Learning) : {p_base} kW
+    - Plafond disjoncteur : {seuil_max} kW
+    - Chambre : Il fait {temp_interieure}°C. Farah veut {temp_cible}°C pour 18h00. Temps de clim calculé : {duree_clim_min} minutes (allumage calculé à {heure_allumage_clim}).
+    - Véhicule électrique : Batterie à {soc_actuel}%. Cible demandée : {soc_cible}%. Durée pour {soc_cible}% : {duree_charge_h} heures.
+    - Durée nécessaire pour atteindre 100% : {duree_100_h} heures au total.
+    - Situation : {'Surcharge évitée ! Voiture décalée à 23h00 en heures creuses' if surcharge else 'Charge simultanée autorisée'}.
+
+    DIRECTIVES DE RÉPONSE :
+    1. Si Farah demande quand sa voiture sera à 100% ou utilisable : réponds avec l'heure précise en te basant sur {duree_100_h}h de charge à partir de 23h00 (ou immédiat si pas de surcharge) !
+    2. Si elle pose une question d'actualité, d'histoire ou générale (ex: Habib Bourguiba, politique) : réponds-lui avec exactitude et courtoisie en une ou deux phrases, puis rajoute une petite note élégante rappelant que tout est calme et sécurisé côté maison.
+    3. Exprime-toi toujours en termes clairs (heures, minutes, confort, économies) plutôt qu'en jargon purement technique.
+    """
+
+    if "messages" not in st.session_state:
+        st.session_state.messages = [
+            {
+                "role": "assistant",
+                "content": (
+                    "Bonjour Farah. Je supervise en continu les flux énergétiques du foyer. "
+                    "N'hésitez pas à me poser vos questions sur l'autonomie de votre véhicule, "
+                    "l'optimisation de votre climatisation ou mes choix d'arbitrage."
+                ),
+            }
+        ]
+
+    for m in st.session_state.messages:
+        with st.chat_message(m["role"]):
+            st.markdown(m["content"])
+
+    if prompt := st.chat_input("Écrivez votre message à l'Orchestrateur..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        if api_key:
+            with st.spinner("Analyse en cours..."):
+                rep = appeler_gemini(prompt, contexte_ia, api_key)
+        else:
+            rep = "Veuillez renseigner votre clé API Gemini dans le panneau latéral pour interagir avec l'assistant."
+
+        st.session_state.messages.append({"role": "assistant", "content": rep})
+        with st.chat_message("assistant"):
+            st.markdown(rep)
+
+    st.markdown("</div>", unsafe_allow_html=True)
