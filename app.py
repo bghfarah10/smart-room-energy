@@ -584,10 +584,10 @@ st.markdown(
     """
     <div class="page-heading">
         <div>
-            <div class="page-title">Smart Home Energy Orchestration</div>
-            <div class="page-subtitle">Supervision énergétique prédictive et coordination multi-agents</div>
+            <div class="page-title">Votre maison, en équilibre</div>
+            <div class="page-subtitle">Un aperçu simple de votre consommation, du confort et de la recharge.</div>
         </div>
-        <div style="font-size:0.76rem;color:#64748B;">Tableau de bord de supervision</div>
+        <div style="font-size:0.76rem;color:#64748B;">Tableau de bord du foyer</div>
     </div>
     """,
     unsafe_allow_html=True,
@@ -607,7 +607,7 @@ with c1:
     st.markdown(
         f"""
         <div class="user-card">
-            <div class="card-category">Consommation de la maison</div>
+            <div class="card-category">À la maison</div>
             <div class="card-main">{"Activité estimée" if prediction_reelle else "Estimation de secours"}</div>
             <div class="card-sub">Prévision LSTM : {p_base:.2f} kW</div>
         </div>
@@ -619,7 +619,7 @@ with c2:
     st.markdown(
         f"""
         <div class="user-card">
-            <div class="card-category">Confort de la chambre</div>
+            <div class="card-category">Température de la chambre</div>
             <div class="card-main">{duree_clim_min} min nécessaires</div>
             <div class="card-sub">Démarrage estimé à {heure_demarrage_clim} pour 18h00</div>
         </div>
@@ -634,7 +634,7 @@ with c3:
     st.markdown(
         f"""
         <div class="user-card">
-            <div class="card-category">Recharge du véhicule</div>
+            <div class="card-category">Votre voiture</div>
             <div class="card-main">{statut_voiture}</div>
             <div class="card-sub">{duree_charge_cible_h:.1f} h estimées pour atteindre {soc_cible}%</div>
         </div>
@@ -652,7 +652,7 @@ with c4:
     st.markdown(
         f"""
         <div class="user-card" style="border-left:4px solid {couleur_statut};">
-            <div class="card-category">Sécurité électrique</div>
+            <div class="card-category">Puissance électrique</div>
             <div class="card-main" style="color:{couleur_statut};">{statut_reseau}</div>
             <div class="card-sub">{detail_reseau}</div>
         </div>
@@ -667,7 +667,7 @@ col_supervision, col_assistant = st.columns([1, 1.15], gap="medium")
 # -------------------- JAUGE ET DECISION --------------------
 with col_supervision:
     with st.container(border=True):
-        st.markdown('<div class="panel-title">Équilibre de charge du foyer</div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-title">Est-ce que tout peut fonctionner en même temps ?</div>', unsafe_allow_html=True)
 
         fig = go.Figure(
             go.Indicator(
@@ -751,8 +751,8 @@ with col_assistant:
         st.markdown(
             """
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                <div class="panel-title" style="margin:0;">Assistant de supervision</div>
-                <div style="font-size:0.72rem;color:#64748B;">Mode Gemini ou local</div>
+                <div class="panel-title" style="margin:0;">Une question ?</div>
+                <div style="font-size:0.72rem;color:#64748B;">Je vous aide à comprendre</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -763,27 +763,28 @@ with col_assistant:
                 {
                     "role": "assistant",
                     "content": (
-                        "Bonjour. Je suis l'assistant de supervision énergétique. "
-                        "Vous pouvez me poser des questions sur la consommation, la "
-                        "puissance souscrite, la climatisation ou la recharge du véhicule."
+                        "Bonjour ! Regardons ça ensemble. "
+                        "Vous pouvez me demander ce que signifie une valeur en kW, "
+                        "si votre installation risque de dépasser sa limite, ou quand "
+                        "la voiture devrait être rechargée."
                     ),
                 }
             ]
 
-        # Zone de conversation avec défilement interne, pour limiter la hauteur de la page.
-        chat_box = st.container(height=270)
+        # Historique sans hauteur fixe : pas de petite fenêtre de discussion à faire défiler.
+        chat_box = st.container()
 
         for message in st.session_state.messages[-12:]:
             with chat_box.chat_message(message["role"]):
                 st.markdown(message["content"])
 
         if not api_key:
-            st.caption("Assistant local actif : aucune clé API n'est nécessaire.")
+            st.caption("Vous pouvez discuter directement, sans configurer de clé API.")
         else:
-            st.caption("Clé API renseignée : Gemini sera utilisé si un modèle est disponible.")
+            st.caption("Le service de réponse en ligne est activé.")
 
 # Le champ de saisie Streamlit est placé après les colonnes afin de rester utilisable.
-prompt = st.chat_input("Écrivez votre question...")
+prompt = st.chat_input("Écrivez votre question ici…")
 if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
 
@@ -813,4 +814,4 @@ mode_actuel = st.session_state.get(
     "mode_assistant",
     "Gemini disponible sous réserve de compatibilité" if api_key else "Mode local",
 )
-st.caption(f"Assistant : {mode_actuel}")
+st.caption(f"Réponse : {mode_actuel}")
