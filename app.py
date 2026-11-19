@@ -1,230 +1,214 @@
+
 from datetime import datetime, timedelta
-import os
 import re
 
 import joblib
 import pandas as pd
 import plotly.graph_objects as go
-import requests
 import streamlit as st
 from tensorflow.keras.models import load_model
 
 
 # ============================================================
-# 1. CONFIGURATION ET STYLE
+# 1. CONFIGURATION
 # ============================================================
+
 st.set_page_config(
-    page_title="Smart Home Energy Orchestration",
-    page_icon="SH",
+    page_title="Maison & Énergie",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-st.markdown(
-    """
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
 
-    :root {
-        --bg: #F8F6F1;
-        --navy: #0F1E36;
-        --blue: #1D3557;
-        --muted: #64748B;
-        --border: #E5E0D8;
-        --card: #FFFFFF;
-        --green: #286348;
-        --red: #A83D35;
-        --sand: #F1ECE3;
-    }
+:root {
+    --background: #F6F5F1;
+    --white: #FFFFFF;
+    --text: #263548;
+    --muted: #788493;
+    --border: #E8E5DE;
+    --green: #557C65;
+    --red: #B75C52;
+}
 
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
+html, body, [class*="css"] {
+    font-family: 'DM Sans', sans-serif;
+}
 
-    .stApp {
-        background: var(--bg);
-        color: var(--navy);
-    }
+.stApp {
+    background: var(--background);
+    color: var(--text);
+}
 
-    .block-container {
+/* Mise en page compacte sur ordinateur */
+@media (min-width: 900px) {
+    .main .block-container {
         max-width: 100% !important;
-        padding-top: 0.9rem !important;
-        padding-bottom: 0.6rem !important;
-        padding-left: 1.8rem !important;
-        padding-right: 1.8rem !important;
+        padding: 0.7rem 1.3rem 0.3rem 1.3rem !important;
     }
 
-    section[data-testid="stSidebar"] {
-        background: var(--navy);
-        border-right: 1px solid #263754;
+    [data-testid="stAppViewContainer"] {
+        overflow: hidden;
     }
+}
 
-    section[data-testid="stSidebar"] * {
-        color: #F8F6F1 !important;
-    }
+.block-container {
+    padding-top: 0.7rem !important;
+    padding-bottom: 0.4rem !important;
+}
 
-    section[data-testid="stSidebar"] input {
-        color: var(--navy) !important;
-    }
+/* Barre latérale */
+section[data-testid="stSidebar"] {
+    background: #29394C;
+}
 
-    section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
-        color: #F8F6F1 !important;
-    }
+section[data-testid="stSidebar"] * {
+    color: #F8F7F4 !important;
+}
 
-    div[data-testid="stMetric"] {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 11px;
-        padding: 10px 13px;
-        box-shadow: 0 2px 7px rgba(15, 30, 54, 0.035);
-    }
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+    color: #D9E0E7 !important;
+}
 
-    div[data-testid="stMetric"] label {
-        color: var(--muted) !important;
-        font-size: 0.72rem !important;
-        font-weight: 700 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.035em;
-    }
+section[data-testid="stSidebar"] hr {
+    border-color: #526176;
+}
 
-    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
-        color: var(--navy) !important;
-        font-size: 1.35rem !important;
-        font-weight: 750 !important;
-    }
+/* Titres */
+h1, h2, h3 {
+    color: var(--text) !important;
+    letter-spacing: -0.025em;
+}
 
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        background: var(--card);
-        border: 1px solid var(--border) !important;
-        border-radius: 12px !important;
-        padding: 11px 13px !important;
-        box-shadow: 0 2px 8px rgba(15, 30, 54, 0.025);
-    }
+/* Cartes */
+div[data-testid="stMetric"] {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.55rem 0.8rem;
+    min-height: 85px;
+}
 
-    .page-heading {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 10px;
-    }
+div[data-testid="stMetric"] label {
+    color: var(--muted) !important;
+    font-size: 0.73rem !important;
+    font-weight: 600 !important;
+}
 
-    .page-title {
-        color: var(--navy);
-        font-size: 1.35rem;
-        line-height: 1.25;
-        font-weight: 800;
-        margin: 0;
-    }
+div[data-testid="stMetricValue"] {
+    color: var(--text) !important;
+    font-size: 1.35rem !important;
+    font-weight: 700 !important;
+}
 
-    .page-subtitle {
-        color: var(--muted);
-        font-size: 0.78rem;
-        margin-top: 3px;
-    }
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    background: var(--white);
+    border: 1px solid var(--border) !important;
+    border-radius: 13px !important;
+    padding: 0.7rem 0.8rem !important;
+}
 
-    .user-card {
-        background: #FFFFFF;
-        border: 1px solid var(--border);
-        border-radius: 11px;
-        padding: 13px 14px;
-        min-height: 112px;
-        box-shadow: 0 2px 7px rgba(15, 30, 54, 0.025);
-    }
+/* En-tête */
+.page-title {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0;
+}
 
-    .card-category {
-        color: #54708D;
-        font-size: 0.69rem;
-        text-transform: uppercase;
-        letter-spacing: 0.07em;
-        font-weight: 750;
-        margin-bottom: 8px;
-    }
+.page-description {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-top: 0.1rem;
+    margin-bottom: 0.55rem;
+}
 
-    .card-main {
-        color: var(--navy);
-        font-size: 1.28rem;
-        font-weight: 800;
-        line-height: 1.25;
-        margin-bottom: 7px;
-    }
+/* Textes des cartes */
+.section-title {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--text);
+}
 
-    .card-sub {
-        display: inline-block;
-        background: var(--sand);
-        color: #586779;
-        border-radius: 6px;
-        padding: 4px 7px;
-        font-size: 0.72rem;
-        line-height: 1.35;
-    }
+.section-description {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 0.4rem;
+}
 
-    .panel-title {
-        color: var(--navy);
-        font-size: 0.93rem;
-        font-weight: 750;
-        margin-bottom: 6px;
-    }
+.decision {
+    background: #F7F6F2;
+    border-radius: 9px;
+    padding: 0.65rem;
+    font-size: 0.82rem;
+    line-height: 1.45;
+    color: #536174;
+}
 
-    .status-line {
-        font-size: 0.82rem;
-        line-height: 1.5;
-        border-radius: 8px;
-        padding: 9px 11px;
-        margin-top: 4px;
-    }
+.good {
+    color: var(--green);
+    font-weight: 700;
+    font-size: 0.78rem;
+}
 
-    .status-good {
-        color: #214B38;
-        background: #F0F6F2;
-        border-left: 3px solid var(--green);
-    }
+.warning {
+    color: var(--red);
+    font-weight: 700;
+    font-size: 0.78rem;
+}
 
-    .status-warn {
-        color: #74342F;
-        background: #FBF1EF;
-        border-left: 3px solid var(--red);
-    }
+/* Chat */
+.stChatMessage {
+    background: #F8F7F4 !important;
+    border: 1px solid #ECE9E3 !important;
+    border-radius: 10px !important;
+    padding: 0.4rem 0.65rem !important;
+    margin-bottom: 0.3rem !important;
+}
 
-    .stChatMessage {
-        background: #FAF8F5 !important;
-        border: 1px solid #EAE5DD !important;
-        border-radius: 9px !important;
-        padding: 7px 10px !important;
-        margin-bottom: 5px !important;
-        font-size: 0.86rem !important;
-    }
+.stChatMessage p {
+    font-size: 0.82rem !important;
+    line-height: 1.4 !important;
+}
 
-    [data-testid="stChatInput"] {
-        padding-top: 4px;
-    }
+[data-testid="stChatInput"] {
+    margin-top: 0.35rem;
+}
 
-    #MainMenu, footer, header {
-        visibility: hidden;
-    }
+[data-testid="stChatInput"] textarea {
+    background: white !important;
+    border-radius: 10px !important;
+}
 
-    @media (max-width: 900px) {
-        .block-container {
-            padding-left: 0.8rem !important;
-            padding-right: 0.8rem !important;
-        }
-        .page-heading {
-            align-items: flex-start;
-            flex-direction: column;
-        }
+.small-note {
+    font-size: 0.68rem;
+    color: #8A929C;
+    margin-top: 0.35rem;
+}
+
+/* Réduction des espaces */
+div[data-testid="stVerticalBlock"] {
+    gap: 0.55rem;
+}
+
+@media (max-width: 899px) {
+    .block-container {
+        padding: 0.8rem !important;
     }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+}
+</style>
+""", unsafe_allow_html=True)
 
 
 # ============================================================
-# 2. CHARGEMENT DU MODELE LSTM ET DES DONNEES
+# 2. CHARGEMENT DU MODÈLE LSTM
 # ============================================================
+
 @st.cache_resource
 def charger_ia():
-    """Charge le modèle et le scaler. Retourne (None, None) si absents."""
     try:
         model = load_model("modele_lstm_energie.keras")
         scaler_obj = joblib.load("scaler.pkl")
@@ -233,441 +217,459 @@ def charger_ia():
         return None, None
 
 
-@st.cache_data
-def charger_donnees():
-    try:
-        return pd.read_csv("consommation_horaire_propre.csv", index_col="datetime")
-    except Exception:
-        return None
-
-
 modele, scaler = charger_ia()
-df_energie = charger_donnees()
 
 
 def predire_base_foyer():
-    """
-    Prévoit la puissance de base à partir des 24 premières valeurs horaires
-    disponibles à partir de l'index 100, comme dans le jeu de données du projet.
-    """
-    if modele is None or scaler is None or df_energie is None:
-        return 2.55, False
-
     try:
-        if "Global_active_power" not in df_energie.columns:
-            raise ValueError("Colonne Global_active_power introuvable.")
+        if modele is None or scaler is None:
+            return 2.55
 
-        valeurs = df_energie["Global_active_power"].iloc[100:124].dropna().values
-        if len(valeurs) != 24:
-            raise ValueError("Il faut 24 valeurs horaires valides pour la prédiction.")
+        df = pd.read_csv(
+            "consommation_horaire_propre.csv",
+            index_col="datetime"
+        )
 
-        valeurs_scaled = scaler.transform(valeurs.reshape(-1, 1))
-        entree = valeurs_scaled.reshape(1, 24, 1)
-        prediction_scaled = modele.predict(entree, verbose=0)
-        prediction = scaler.inverse_transform(prediction_scaled.reshape(-1, 1))[0][0]
-        return max(0.0, round(float(prediction), 2)), True
+        sample = df["Global_active_power"].iloc[100:124].values
+
+        if len(sample) != 24:
+            return 2.55
+
+        scaled = scaler.transform(sample.reshape(-1, 1))
+
+        prediction = modele.predict(
+            scaled.reshape(1, 24, 1),
+            verbose=0
+        )
+
+        return round(
+            float(scaler.inverse_transform(prediction)[0][0]),
+            2
+        )
+
     except Exception:
-        return 2.55, False
-
-
-p_base, prediction_reelle = predire_base_foyer()
+        return 2.55
 
 
 # ============================================================
-# 3. PARAMETRES UTILISATEUR
+# 3. PARAMÈTRES DU FOYER
 # ============================================================
+
 with st.sidebar:
-    st.markdown("### Paramètres du foyer")
+    st.markdown("## Paramètres du foyer")
     st.caption("Ajustez les valeurs pour actualiser la simulation.")
+    st.divider()
 
-    cle_secrete = ""
-    try:
-        cle_secrete = st.secrets.get("GEMINI_API_KEY", "")
-    except Exception:
-        cle_secrete = os.getenv("GEMINI_API_KEY", "")
-
-    api_key = st.text_input(
-        "Clé API Gemini (facultatif)",
-        value=cle_secrete,
-        type="password",
-        help="Sans clé API, l'assistant utilise le mode local intégré.",
+    seuil_max = st.slider(
+        "Puissance souscrite (kW)",
+        3.0, 12.0, 6.0, 0.5
     )
 
-    st.markdown("---")
-    st.markdown("#### Contrat électrique")
-    seuil_max = st.slider("Puissance souscrite (kW)", 3.0, 12.0, 6.0, 0.5)
+    temp_interieure = st.slider(
+        "Température actuelle (°C)",
+        20.0, 38.0, 30.0, 0.5
+    )
 
-    st.markdown("#### Confort de la chambre")
-    temp_interieure = st.slider("Température actuelle (°C)", 20.0, 38.0, 30.0, 0.5)
-    temp_cible = st.slider("Température souhaitée (°C)", 18.0, 26.0, 21.0, 0.5)
+    temp_cible = st.slider(
+        "Température souhaitée (°C)",
+        18.0, 26.0, 21.0, 0.5
+    )
 
-    st.markdown("#### Véhicule électrique")
-    soc_actuel = st.slider("Batterie actuelle (%)", 5, 100, 35, 5)
-    soc_cible = st.slider("Objectif de charge (%)", 50, 100, 80, 5)
+    soc_actuel = st.slider(
+        "Batterie actuelle (%)",
+        5, 100, 35, 5
+    )
 
-    st.markdown("---")
-    st.caption("Hypothèses de simulation : batterie 50 kWh, rendement de charge 90 %, borne 3,7 kW.")
+    soc_cible = st.slider(
+        "Objectif de charge (%)",
+        50, 100, 80, 5
+    )
+
+    st.divider()
+
+    st.caption(
+        "Hypothèses : batterie 50 kWh, "
+        "rendement 90 %, borne 3,7 kW."
+    )
 
 
 # ============================================================
-# 4. CALCULS ENERGETIQUES ET PLANIFICATION
+# 4. CALCULS
 # ============================================================
-# Climatisation : hypothèse simplifiée de 0,20 °C/min.
-delta_temp = max(0.0, temp_interieure - temp_cible)
-duree_clim_min = int(round(delta_temp / 0.20)) if delta_temp > 0 else 0
+
+p_base = predire_base_foyer()
+
+# Climatisation
+delta_t = max(0, temp_interieure - temp_cible)
+
+duree_clim_min = (
+    round(delta_t / 0.20)
+    if delta_t > 0 else 0
+)
+
 p_clim = 2.0 if duree_clim_min > 0 else 0.0
 
-heure_confort = datetime.strptime("18:00", "%H:%M")
 heure_demarrage_clim = (
-    heure_confort - timedelta(minutes=duree_clim_min)
+    datetime.strptime("18:00", "%H:%M")
+    - timedelta(minutes=duree_clim_min)
 ).strftime("%H:%M")
 
-# Recharge VE.
-capacite_batterie_kwh = 50.0
-puissance_borne_kw = 3.7
-rendement_charge = 0.90
+
+# Recharge du véhicule
+capa_kwh = 50.0
+puiss_borne = 3.7
+rendement = 0.90
 
 energie_cible_kwh = (
-    capacite_batterie_kwh * max(0, soc_cible - soc_actuel) / 100 / rendement_charge
+    capa_kwh
+    * max(0, soc_cible - soc_actuel)
+    / 100
+    / rendement
 )
+
 duree_charge_cible_h = (
-    energie_cible_kwh / puissance_borne_kw if energie_cible_kwh > 0 else 0.0
+    energie_cible_kwh / puiss_borne
+    if energie_cible_kwh > 0 else 0
 )
 
 energie_100_kwh = (
-    capacite_batterie_kwh * max(0, 100 - soc_actuel) / 100 / rendement_charge
+    capa_kwh
+    * max(0, 100 - soc_actuel)
+    / 100
+    / rendement
 )
-duree_charge_100_h = energie_100_kwh / puissance_borne_kw if energie_100_kwh > 0 else 0.0
 
-p_ve = puissance_borne_kw if energie_cible_kwh > 0 else 0.0
-p_totale_brute = round(p_base + p_clim + p_ve, 2)
+duree_charge_100_h = (
+    energie_100_kwh / puiss_borne
+    if energie_100_kwh > 0 else 0
+)
+
+p_ve = (
+    puiss_borne
+    if duree_charge_cible_h > 0 else 0
+)
+
+
+# Puissance totale
+p_totale_brute = round(
+    p_base + p_clim + p_ve,
+    2
+)
+
 surcharge = p_totale_brute > seuil_max
 
-# Si la charge simultanée dépasse le contrat, la voiture est décalée à 23h.
+surcroit = (
+    round(p_totale_brute - seuil_max, 2)
+    if surcharge else 0
+)
+
 heure_debut_charge = "23:00" if surcharge else "18:00"
-puissance_apres_arbitrage = round(p_base + p_clim, 2) if surcharge else p_totale_brute
-marge_apres_arbitrage = round(seuil_max - puissance_apres_arbitrage, 2)
 
-def heure_fin_charge(heure_depart, duree_heures):
-    depart = datetime.strptime(heure_depart, "%H:%M")
-    arrivee = depart + timedelta(minutes=round(duree_heures * 60))
-    suffixe = " (lendemain)" if arrivee.date() > depart.date() else ""
-    return arrivee.strftime("%H:%M") + suffixe
+minutes_100 = round(duree_charge_100_h * 60)
 
+heure_fin_100_dt = (
+    datetime.strptime(heure_debut_charge, "%H:%M")
+    + timedelta(minutes=minutes_100)
+)
 
-heure_fin_cible = heure_fin_charge(heure_debut_charge, duree_charge_cible_h)
-heure_fin_100 = heure_fin_charge(heure_debut_charge, duree_charge_100_h)
+heure_fin_100 = heure_fin_100_dt.strftime("%H:%M")
 
-# Heure indicative de disponibilité à 07h30.
-heure_depart_dt = datetime.strptime(heure_debut_charge, "%H:%M")
-heure_fin_cible_dt = heure_depart_dt + timedelta(minutes=round(duree_charge_cible_h * 60))
-heure_limite = datetime.strptime("07:30", "%H:%M")
-if heure_debut_charge == "23:00":
-    heure_limite += timedelta(days=1)
-voiture_prete_0730 = heure_fin_cible_dt <= heure_limite
+if heure_fin_100_dt.day > 1:
+    heure_fin_100 += " (lendemain)"
+
+p_apres_arbitrage = round(p_base + p_clim, 2)
+
 
 # ============================================================
-# 5. OUTILS POUR L'ASSISTANT : GEMINI + MODE LOCAL
+# 5. CHATBOT LOCAL
 # ============================================================
-def appeler_gemini(message_utilisateur, contexte_systeme, key):
-    """
-    Essaie plusieurs modèles Gemini compatibles. Le premier modèle disponible
-    qui répond correctement est utilisé. Une erreur API déclenche le mode local.
-    """
-    modeles_a_essayer = [
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-1.5-flash",
-    ]
 
-    prompt_complet = (
-        f"{contexte_systeme}\n\n"
-        "Réponds en français, de façon naturelle, précise et concise. "
-        "Explique les termes techniques simplement. Ne prétends pas qu'une action "
-        "physique a été exécutée : il s'agit d'une simulation de supervision.\n\n"
-        f"Question de l'utilisateur : {message_utilisateur}"
-    )
+def repondre_question(question):
 
-    erreurs = []
-    for nom_modele in modeles_a_essayer:
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{nom_modele}:generateContent?key={key}"
-        )
-        try:
-            response = requests.post(
-                url,
-                headers={"Content-Type": "application/json"},
-                json={"contents": [{"parts": [{"text": prompt_complet}]}]},
-                timeout=20,
-            )
-
-            if response.status_code == 200:
-                contenu = response.json()
-                return contenu["candidates"][0]["content"]["parts"][0]["text"], nom_modele
-
-            erreurs.append(f"{nom_modele}: HTTP {response.status_code}")
-            # Un 404 signifie souvent que le modèle n'est pas disponible pour cette clé/API.
-            if response.status_code not in (400, 404, 429, 500, 503):
-                break
-        except requests.RequestException as exc:
-            erreurs.append(f"{nom_modele}: {exc}")
-            break
-        except (KeyError, IndexError, TypeError, ValueError):
-            erreurs.append(f"{nom_modele}: réponse API inattendue")
-
-    return None, "; ".join(erreurs)
-
-
-def reponse_locale(question):
-    """Assistant local à base de règles, utilisable sans connexion Gemini."""
     q = question.lower().strip()
-    q_normalise = (
-        q.replace("é", "e").replace("è", "e").replace("ê", "e")
-         .replace("à", "a").replace("ù", "u").replace("ç", "c")
-    )
 
-    # Compréhension des questions qui contiennent une valeur de puissance.
-    valeurs_kw = re.findall(r"(\d+(?:[.,]\d+)?)\s*k\s*w", q_normalise)
-    if valeurs_kw and any(mot in q_normalise for mot in [
-        "signifie", "signification", "veut dire", "c'est quoi", "correspond",
-        "comprendre", "kw", "puissance"
+    # Normalisation des apostrophes
+    q = q.replace("'", " ").replace("’", " ")
+
+    # Salutations
+    if any(mot in q for mot in [
+        "bonjour", "salut", "hello",
+        "bonsoir", "coucou"
     ]):
-        valeur = float(valeurs_kw[0].replace(",", "."))
-        energie_une_heure = valeur
-        minutes_30 = valeur * 0.5
-        comparaison = (
-            f"Cette valeur dépasse le plafond configuré de {seuil_max:.1f} kW."
-            if valeur > seuil_max
-            else f"Cette valeur reste sous le plafond configuré de {seuil_max:.1f} kW."
-        )
         return (
-            f"{valeur:g} kW signifie une puissance électrique de {valeur:g} kilowatts. "
-            f"Cela correspond à une consommation d'énergie de {energie_une_heure:g} kWh "
-            f"si cette puissance est maintenue pendant une heure, ou de {minutes_30:g} kWh "
-            f"pendant 30 minutes. {comparaison} "
-            "Le kW mesure une puissance à un instant donné, tandis que le kWh mesure "
-            "une quantité d'énergie consommée sur une durée."
+            "Bonjour ! Comment allez-vous ? "
+            "Dites-moi ce que vous souhaitez comprendre "
+            "et je vous aiderai avec plaisir."
         )
 
-    if any(mot in q_normalise for mot in ["100%", "100 pourcent", "plein", "batterie pleine"]):
-        return (
-            f"Pour passer de {soc_actuel}% à 100%, il faut fournir environ "
-            f"{energie_100_kwh:.1f} kWh, en tenant compte du rendement estimé de "
-            f"{rendement_charge:.0%}. À 3,7 kW, cela représente environ "
-            f"{duree_charge_100_h:.1f} heures. Avec le planning actuel, la charge "
-            f"commencerait à {heure_debut_charge} et se terminerait vers {heure_fin_100}."
-        )
-
-    if any(mot in q_normalise for mot in [
-        "voiture", "batterie", "recharge", "charger", "vehicule", "autonomie"
+    # Premier président de Tunisie
+    if any(mot in q for mot in [
+        "premier president",
+        "president de tunisie",
+        "president tunisien",
+        "bourguiba",
+        "tunisie"
     ]):
-        if soc_actuel >= soc_cible:
+        return (
+            "Le premier président de la République tunisienne "
+            "est **Habib Bourguiba**. "
+            "La République tunisienne a été proclamée "
+            "le 25 juillet 1957."
+        )
+
+    # Recharge à 100 %
+    if (
+        ("100" in q or "plein" in q)
+        and any(mot in q for mot in [
+            "voiture", "batterie",
+            "charge", "recharge", "charger"
+        ])
+    ):
+        return (
+            f"Pour passer de **{soc_actuel}% à 100%**, "
+            f"il faut fournir environ **{energie_100_kwh:.1f} kWh**, "
+            f"en tenant compte du rendement de 90%.\n\n"
+            f"À 3,7 kW, cela représente environ "
+            f"**{duree_charge_100_h:.1f} heures**.\n\n"
+            f"- Début de charge : **{heure_debut_charge}**\n"
+            f"- Fin estimée : **{heure_fin_100}**."
+        )
+
+    # Questions sur la voiture
+    if any(mot in q for mot in [
+        "voiture", "batterie",
+        "charge", "recharge", "charger",
+        "vehicule", "véhicule"
+    ]):
+        return (
+            f"La batterie est actuellement à **{soc_actuel}%** "
+            f"et votre objectif est **{soc_cible}%**.\n\n"
+            f"Il faut environ **{energie_cible_kwh:.1f} kWh**, "
+            f"soit **{duree_charge_cible_h:.1f} heures** "
+            f"sur une borne de 3,7 kW.\n\n"
+            f"Le début de charge proposé est **{heure_debut_charge}**."
+        )
+
+    # Climatisation
+    if any(mot in q for mot in [
+        "clim", "chambre", "temperature",
+        "température", "chaleur", "froid"
+    ]):
+        return (
+            f"La température actuelle est de "
+            f"**{temp_interieure}°C**.\n\n"
+            f"Votre température souhaitée est de "
+            f"**{temp_cible}°C**.\n\n"
+            f"Le temps estimé est de **{duree_clim_min} minutes**. "
+            f"Le démarrage proposé est à **{heure_demarrage_clim}** "
+            f"pour atteindre la consigne vers 18h00."
+        )
+
+    # Explication de kW et kWh
+    if any(mot in q for mot in [
+        "kw", "puissance", "consommation",
+        "energie", "énergie", "8.25", "8,25"
+    ]):
+
+        nombre = re.search(
+            r"(\d+(?:[.,]\d+)?)\s*(?:kw)?",
+            q
+        )
+
+        if "8.25" in q or "8,25" in q:
             return (
-                f"La batterie est déjà à {soc_actuel}%, soit au niveau de l'objectif "
-                f"de {soc_cible}%. Aucune recharge supplémentaire n'est nécessaire "
-                "pour atteindre cet objectif."
+                "Dans votre simulation, **8,25 kW** représente "
+                "la puissance totale demandée lorsque la maison, "
+                "la climatisation et la recharge de la voiture "
+                "fonctionnent simultanément.\n\n"
+                f"Votre contrat est de **{seuil_max:.1f} kW**. "
+                f"Le dépassement est donc de "
+                f"**{max(0, 8.25 - seuil_max):.2f} kW**."
             )
+
+        if any(mot in q for mot in [
+            "signifie", "veut dire",
+            "c est quoi", "explique",
+            "represente", "représente"
+        ]):
+
+            if nombre:
+                valeur = float(
+                    nombre.group(1).replace(",", ".")
+                )
+
+                return (
+                    f"**{valeur:.2f} kW**, c'est une mesure "
+                    "de puissance électrique.\n\n"
+                    "Le kW indique la puissance utilisée "
+                    "à un instant donné.\n\n"
+                    "Par exemple, un appareil de 2 kW "
+                    "qui fonctionne pendant une heure "
+                    "consomme environ 2 kWh.\n\n"
+                    "Le kWh représente donc l'énergie consommée "
+                    "pendant une durée."
+                )
+
         return (
-            f"La batterie est actuellement à {soc_actuel}% et l'objectif est "
-            f"{soc_cible}%. Il faut environ {energie_cible_kwh:.1f} kWh, soit "
-            f"{duree_charge_cible_h:.1f} heures sur la borne de 3,7 kW. "
-            f"Début prévu : {heure_debut_charge}. Fin estimée : {heure_fin_cible}. "
-            f"{'La voiture atteindra l’objectif avant 07h30.' if voiture_prete_0730 else 'Avec les paramètres actuels, l’objectif ne sera pas atteint avant 07h30.'}"
+            f"La puissance totale estimée dans votre foyer "
+            f"est de **{p_totale_brute:.2f} kW**.\n\n"
+            f"Votre limite contractuelle est de "
+            f"**{seuil_max:.1f} kW**.\n\n"
+            "Le kW mesure une puissance, tandis que le kWh "
+            "mesure une quantité d'énergie consommée."
         )
 
-    if any(mot in q_normalise for mot in [
-        "clim", "climatisation", "chambre", "temperature", "chaleur", "frais"
-    ]):
-        if duree_clim_min == 0:
-            return (
-                f"La température actuelle est de {temp_interieure:.1f} °C. "
-                f"Elle est déjà égale ou inférieure à la consigne de {temp_cible:.1f} °C. "
-                "La climatisation n'est donc pas nécessaire selon cette simulation."
-            )
-        return (
-            f"La pièce est actuellement à {temp_interieure:.1f} °C et la consigne est "
-            f"{temp_cible:.1f} °C. Avec l'hypothèse de refroidissement de 0,20 °C par "
-            f"minute, il faut environ {duree_clim_min} minutes. Pour atteindre la "
-            f"consigne à 18h00, le démarrage théorique est prévu à {heure_demarrage_clim}."
-        )
-
-    if any(mot in q_normalise for mot in [
-        "surcharge", "disjoncteur", "puissance totale", "courant", "coupure",
-        "puissance appelee", "reseau", "kw"
+    # Surcharge électrique
+    if any(mot in q for mot in [
+        "surcharge", "disjoncteur",
+        "contrat", "abonnement",
+        "depasse", "dépass", "limite"
     ]):
         if surcharge:
             return (
-                f"Si les trois équipements fonctionnent en même temps, la puissance "
-                f"estimée atteint {p_totale_brute:.2f} kW, au-dessus du plafond de "
-                f"{seuil_max:.1f} kW. Le planning proposé décale donc la recharge du "
-                f"véhicule à 23h00. La puissance estimée pendant le fonctionnement de "
-                f"la maison et de la climatisation est alors {puissance_apres_arbitrage:.2f} kW, "
-                f"soit une marge de {marge_apres_arbitrage:.2f} kW."
+                f"La puissance demandée est de "
+                f"**{p_totale_brute:.2f} kW**, "
+                f"alors que votre contrat autorise "
+                f"**{seuil_max:.1f} kW**.\n\n"
+                f"Le dépassement serait de **{surcroit:.2f} kW**.\n\n"
+                "Pour éviter cela, le système propose "
+                "de reporter la recharge de la voiture à 23h00."
             )
+
         return (
-            f"La puissance totale estimée est de {p_totale_brute:.2f} kW pour un plafond "
-            f"de {seuil_max:.1f} kW. La marge disponible est de "
-            f"{seuil_max - p_totale_brute:.2f} kW. Selon les hypothèses de la simulation, "
-            "les équipements peuvent fonctionner simultanément sans dépasser le plafond."
+            f"Bonne nouvelle ! La puissance demandée est de "
+            f"**{p_totale_brute:.2f} kW**, "
+            f"ce qui reste sous votre limite de "
+            f"**{seuil_max:.1f} kW**.\n\n"
+            "Les équipements peuvent fonctionner simultanément "
+            "selon cette simulation."
         )
 
-    if any(mot in q_normalise for mot in ["lstm", "deep learning", "intelligence artificielle", "modele", "prediction"]):
-        statut = "chargé et utilisé" if prediction_reelle else "indisponible : la valeur de secours est utilisée"
-        return (
-            f"Le modèle LSTM sert à prévoir la consommation de base du foyer à partir "
-            f"d'une séquence de 24 valeurs horaires. Dans cette exécution, le modèle est "
-            f"{statut}. La prévision affichée est de {p_base:.2f} kW. "
-            "Cette valeur représente la charge de base estimée, avant l'ajout de la climatisation et de la recharge du véhicule."
+    # LSTM
+    if any(mot in q for mot in [
+        "lstm", "modele", "modèle",
+        "prediction", "prédiction",
+        "ia", "deep learning"
+    ]):
+        origine = (
+            "votre modèle LSTM"
+            if modele is not None
+            else "la valeur de démonstration utilisée en attendant le modèle"
         )
 
-    if any(mot in q_normalise for mot in ["bonjour", "salut", "bonsoir", "hello"]):
         return (
-            "Bonjour. Je peux vous renseigner sur la consommation du foyer, la puissance "
-            "souscrite, la climatisation, la recharge du véhicule et les décisions de "
-            "répartition de la puissance."
+            f"La prévision de consommation de fond est de "
+            f"**{p_base:.2f} kW**.\n\n"
+            f"Elle provient de {origine}. "
+            "Cette prévision sert de base aux calculs "
+            "de consommation du foyer."
         )
 
+    # Questions sur la maison
+    if any(mot in q for mot in [
+        "maison", "foyer", "ma consommation",
+        "fonctionnement", "simulation"
+    ]):
+        return (
+            f"Actuellement, la consommation de fond est estimée "
+            f"à **{p_base:.2f} kW**.\n\n"
+            f"La climatisation demande **{p_clim:.2f} kW** "
+            f"et la recharge **{p_ve:.2f} kW**.\n\n"
+            f"La puissance totale atteint donc "
+            f"**{p_totale_brute:.2f} kW**."
+        )
+
+    # Réponse par défaut
     return (
-        f"Je peux vous aider à comprendre la situation énergétique actuelle. "
-        f"La puissance totale simulée est de {p_totale_brute:.2f} kW, pour une limite "
-        f"de {seuil_max:.1f} kW. Vous pouvez me demander par exemple ce que signifie "
-        "une valeur en kW, quand lancer la climatisation, combien de temps prendra "
-        "la recharge ou pourquoi le système décale la charge."
+        "Je peux vous aider à comprendre les résultats "
+        "de votre maison.\n\n"
+        "Vous pouvez par exemple me demander :\n\n"
+        "- Que signifie 8,25 kW ?\n"
+        "- Quand ma voiture sera-t-elle chargée à 100 % ?\n"
+        "- Pourquoi la recharge est-elle reportée à 23h ?\n"
+        "- Combien de temps faut-il pour refroidir la chambre ?\n"
+        "- Qu'est-ce que le modèle LSTM ?\n\n"
+        "Vous pouvez aussi me poser une question générale "
+        "sur ces sujets."
     )
 
 
 # ============================================================
-# 6. CONTEXTE TRANSMIS A GEMINI
+# 6. INTERFACE PRINCIPALE
 # ============================================================
-contexte_ia = f"""
-Tu es l'assistant de supervision d'un système domotique énergétique multi-agents.
-Tu réponds en français, avec un ton professionnel, naturel et accessible.
-Tu peux répondre aux questions générales, mais pour les questions sur la maison,
-utilise prioritairement les données ci-dessous. Ne fabrique pas de mesures.
-Il s'agit d'une simulation : ne prétends pas avoir réellement allumé un appareil.
 
-DONNEES ACTUELLES :
-- Prévision de puissance de base par LSTM : {p_base:.2f} kW.
-- Modèle LSTM réellement disponible : {"oui" if prediction_reelle else "non, valeur de secours utilisée"}.
-- Puissance souscrite : {seuil_max:.1f} kW.
-- Température actuelle : {temp_interieure:.1f} °C.
-- Température cible : {temp_cible:.1f} °C.
-- Durée estimée de climatisation : {duree_clim_min} minutes.
-- Démarrage théorique de la climatisation pour une consigne à 18h : {heure_demarrage_clim}.
-- Batterie du véhicule : {soc_actuel}%.
-- Objectif de batterie : {soc_cible}%.
-- Durée estimée de recharge vers l'objectif : {duree_charge_cible_h:.2f} heures.
-- Durée estimée de recharge vers 100% : {duree_charge_100_h:.2f} heures.
-- Puissance totale si tout fonctionne en même temps : {p_totale_brute:.2f} kW.
-- Dépassement du plafond en fonctionnement simultané : {"oui" if surcharge else "non"}.
-- Début de charge planifié : {heure_debut_charge}.
-- Fin estimée de charge vers l'objectif : {heure_fin_cible}.
-- Fin estimée de charge à 100% : {heure_fin_100}.
-
-EXPLICATIONS A RESPECTER :
-- Le kW est une unité de puissance. Le kWh est une unité d'énergie.
-- Une puissance de X kW maintenue pendant une heure correspond à X kWh.
-- La puissance totale est une estimation calculée à partir des hypothèses du projet.
-- Si la puissance simultanée dépasse la puissance souscrite, le système propose de
-  décaler la recharge du véhicule à 23h00.
-- Présente les heures et durées de façon claire. Si une donnée dépend d'une hypothèse,
-  précise qu'il s'agit d'une estimation.
-"""
-
-
-# ============================================================
-# 7. INTERFACE PRINCIPALE : CARTES + JAUGE + CHAT
-# ============================================================
-st.markdown(
-    """
-    <div class="page-heading">
-        <div>
-            <div class="page-title">Votre maison, en équilibre</div>
-            <div class="page-subtitle">Un aperçu simple de votre consommation, du confort et de la recharge.</div>
-        </div>
-        <div style="font-size:0.76rem;color:#64748B;">Tableau de bord du foyer</div>
+st.markdown("""
+<div>
+    <div class="page-title">Votre maison, en équilibre</div>
+    <div class="page-description">
+        Un aperçu simple de votre consommation, du confort et de la recharge.
     </div>
-    """,
-    unsafe_allow_html=True,
+</div>
+""", unsafe_allow_html=True)
+
+
+# Indicateurs
+c1, c2, c3, c4 = st.columns(4)
+
+c1.metric(
+    "Consommation prévue",
+    f"{p_base:.2f} kW",
+    "Prévision LSTM"
 )
 
-if not prediction_reelle:
-    st.info(
-        "Le modèle LSTM ou ses fichiers de données n'ont pas été chargés. "
-        "La valeur de secours de 2,55 kW est utilisée pour la démonstration. "
-        "Vérifiez la présence des trois fichiers du modèle dans le même dossier que app.py."
-    )
+c2.metric(
+    "Climatisation",
+    f"{p_clim:.2f} kW",
+    f"{duree_clim_min} min estimées"
+)
 
-# Cartes orientées utilisateur.
-c1, c2, c3, c4 = st.columns(4, gap="small")
+c3.metric(
+    "Recharge voiture",
+    f"{p_ve:.2f} kW",
+    f"{duree_charge_cible_h:.1f} h vers {soc_cible}%"
+)
 
-with c1:
-    st.markdown(
-        f"""
-        <div class="user-card">
-            <div class="card-category">À la maison</div>
-            <div class="card-main">{"Activité estimée" if prediction_reelle else "Estimation de secours"}</div>
-            <div class="card-sub">Prévision LSTM : {p_base:.2f} kW</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+c4.metric(
+    "Puissance totale",
+    f"{p_totale_brute:.2f} kW",
+    (
+        f"+{surcroit:.2f} kW au-dessus du contrat"
+        if surcharge
+        else f"{seuil_max-p_totale_brute:.2f} kW disponibles"
+    ),
+    delta_color="inverse"
+)
 
-with c2:
-    st.markdown(
-        f"""
-        <div class="user-card">
-            <div class="card-category">Température de la chambre</div>
-            <div class="card-main">{duree_clim_min} min nécessaires</div>
-            <div class="card-sub">Démarrage estimé à {heure_demarrage_clim} pour 18h00</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
-with c3:
-    statut_voiture = "Objectif atteint" if soc_actuel >= soc_cible else (
-        "Prête avant 07h30" if voiture_prete_0730 else f"Fin vers {heure_fin_cible}"
-    )
-    st.markdown(
-        f"""
-        <div class="user-card">
-            <div class="card-category">Votre voiture</div>
-            <div class="card-main">{statut_voiture}</div>
-            <div class="card-sub">{duree_charge_cible_h:.1f} h estimées pour atteindre {soc_cible}%</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+# ============================================================
+# 7. TABLEAU DE BORD ET CHAT
+# ============================================================
 
-with c4:
-    statut_reseau = "Répartition nécessaire" if surcharge else "Réseau équilibré"
-    couleur_statut = "#A83D35" if surcharge else "#286348"
-    detail_reseau = (
-        f"Recharge reportée à {heure_debut_charge}"
-        if surcharge else f"Marge disponible : {seuil_max - p_totale_brute:.2f} kW"
-    )
-    st.markdown(
-        f"""
-        <div class="user-card" style="border-left:4px solid {couleur_statut};">
-            <div class="card-category">Puissance électrique</div>
-            <div class="card-main" style="color:{couleur_statut};">{statut_reseau}</div>
-            <div class="card-sub">{detail_reseau}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+col_gauche, col_droite = st.columns(
+    [1.05, 1],
+    gap="medium"
+)
 
-st.write("")
 
-col_supervision, col_assistant = st.columns([1, 1.15], gap="medium")
+# ------------------------------------------------------------
+# GAUCHE : PUISSANCE ET DÉCISION
+# ------------------------------------------------------------
 
-# -------------------- JAUGE ET DECISION --------------------
-with col_supervision:
+with col_gauche:
+
     with st.container(border=True):
-        st.markdown('<div class="panel-title">Est-ce que tout peut fonctionner en même temps ?</div>', unsafe_allow_html=True)
+
+        st.markdown(
+            '<div class="section-title">Puissance électrique</div>',
+            unsafe_allow_html=True
+        )
+
+        st.markdown(
+            '<div class="section-description">'
+            'Votre consommation comparée à la puissance souscrite.'
+            '</div>',
+            unsafe_allow_html=True
+        )
 
         fig = go.Figure(
             go.Indicator(
@@ -676,142 +678,183 @@ with col_supervision:
                 number={
                     "valueformat": ".2f",
                     "suffix": " kW",
-                    "font": {"size": 29, "color": "#0F1E36", "family": "Inter"},
+                    "font": {
+                        "size": 27,
+                        "color": "#263548"
+                    }
                 },
                 gauge={
                     "axis": {
-                        "range": [0, max(12, seuil_max + 1)],
-                        "tickwidth": 1,
-                        "tickcolor": "#AAB4C2",
-                        "nticks": 7,
+                        "range": [0, max(12, seuil_max)]
                     },
-                    "bar": {"color": "#A83D35" if surcharge else "#1D3557"},
-                    "bgcolor": "#F1ECE3",
+                    "bar": {
+                        "color": "#B75C52" if surcharge else "#557C65"
+                    },
+                    "bgcolor": "#F1EFEA",
                     "borderwidth": 0,
                     "steps": [
-                        {"range": [0, seuil_max], "color": "#E8E4DC"},
-                        {"range": [seuil_max, max(12, seuil_max + 1)], "color": "#F5DEDA"},
+                        {
+                            "range": [0, seuil_max],
+                            "color": "#E7EDE7"
+                        },
+                        {
+                            "range": [seuil_max, max(12, seuil_max)],
+                            "color": "#F5E5E1"
+                        }
                     ],
                     "threshold": {
-                        "line": {"color": "#0F1E36", "width": 3},
+                        "line": {
+                            "color": "#263548",
+                            "width": 3
+                        },
                         "thickness": 0.8,
-                        "value": seuil_max,
-                    },
-                },
+                        "value": seuil_max
+                    }
+                }
             )
         )
-        fig.update_layout(
-            height=185,
-            margin=dict(l=12, r=12, t=5, b=5),
-            paper_bgcolor="rgba(0,0,0,0)",
-            font={"family": "Inter"},
-        )
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-        st.caption(
-            f"Puissance souscrite : {seuil_max:.1f} kW · "
-            f"Puissance appelée avant arbitrage : {p_totale_brute:.2f} kW"
+        fig.update_layout(
+            height=175,
+            margin=dict(l=10, r=10, t=5, b=0),
+            paper_bgcolor="rgba(0,0,0,0)"
+        )
+
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            config={"displayModeBar": False}
         )
 
         if surcharge:
+
             st.markdown(
                 f"""
-                <div class="status-line status-warn">
-                    <strong>Dépassement potentiel : {p_totale_brute - seuil_max:.2f} kW.</strong><br>
-                    La consommation simultanée dépasserait la puissance souscrite.
-                    Le système propose de reporter la recharge du véhicule à 23h00.
-                    La puissance estimée pendant le fonctionnement de la maison et de la
-                    climatisation serait alors de {puissance_apres_arbitrage:.2f} kW,
-                    soit une marge de {marge_apres_arbitrage:.2f} kW.
+                <div class="warning">
+                    Dépassement potentiel : {surcroit:.2f} kW
+                </div>
+                <div class="decision">
+                    La puissance simultanée atteint
+                    <strong>{p_totale_brute:.2f} kW</strong>,
+                    pour une limite de
+                    <strong>{seuil_max:.1f} kW</strong>.<br><br>
+                    La recharge du véhicule est proposée à
+                    <strong>23h00</strong>.<br>
+                    La puissance de la maison et de la climatisation
+                    serait alors de
+                    <strong>{p_apres_arbitrage:.2f} kW</strong>,
+                    avec une marge de
+                    <strong>{seuil_max-p_apres_arbitrage:.2f} kW</strong>.
                 </div>
                 """,
-                unsafe_allow_html=True,
+                unsafe_allow_html=True
             )
+
         else:
+
             st.markdown(
                 f"""
-                <div class="status-line status-good">
-                    <strong>Fonctionnement simultané possible selon la simulation.</strong><br>
-                    La puissance estimée ({p_totale_brute:.2f} kW) reste sous le plafond
-                    de {seuil_max:.1f} kW. La marge disponible est de
-                    {seuil_max - p_totale_brute:.2f} kW.
+                <div class="good">
+                    Tout peut fonctionner en même temps
+                </div>
+                <div class="decision">
+                    La puissance totale est de
+                    <strong>{p_totale_brute:.2f} kW</strong>.
+                    Elle respecte votre contrat de
+                    <strong>{seuil_max:.1f} kW</strong>.<br><br>
+                    Il reste une marge de
+                    <strong>{seuil_max-p_totale_brute:.2f} kW</strong>.
                 </div>
                 """,
-                unsafe_allow_html=True,
+                unsafe_allow_html=True
             )
 
-        st.caption(
-            "Les résultats sont des estimations basées sur les paramètres et hypothèses "
-            "du projet, et non des mesures électriques en temps réel."
-        )
-
-# -------------------- ASSISTANT CONVERSATIONNEL --------------------
-with col_assistant:
-    with st.container(border=True):
         st.markdown(
-            """
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                <div class="panel-title" style="margin:0;">Une question ?</div>
-                <div style="font-size:0.72rem;color:#64748B;">Je vous aide à comprendre</div>
+            f"""
+            <div class="small-note">
+                Climatisation : démarrage estimé à {heure_demarrage_clim}.
+                Recharge : début proposé à {heure_debut_charge}.
             </div>
             """,
-            unsafe_allow_html=True,
+            unsafe_allow_html=True
         )
 
+
+# ------------------------------------------------------------
+# DROITE : CHATBOT
+# ------------------------------------------------------------
+
+with col_droite:
+
+    with st.container(border=True):
+
+        st.markdown(
+            '<div class="section-title">Une question ?</div>',
+            unsafe_allow_html=True
+        )
+
+        st.markdown(
+            '<div class="section-description">'
+            'Je suis là pour vous aider à comprendre votre consommation '
+            'et les décisions du système.'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+        # Historique du chatbot
         if "messages" not in st.session_state:
+
             st.session_state.messages = [
                 {
                     "role": "assistant",
                     "content": (
-                        "Bonjour ! Regardons ça ensemble. "
-                        "Vous pouvez me demander ce que signifie une valeur en kW, "
-                        "si votre installation risque de dépasser sa limite, ou quand "
-                        "la voiture devrait être rechargée."
-                    ),
+                        "Bonjour ! Je peux vous aider à comprendre "
+                        "la consommation, la climatisation, "
+                        "la recharge de votre voiture ou "
+                        "les résultats de la simulation. "
+                        "Que souhaitez-vous savoir ?"
+                    )
                 }
             ]
 
-        # Historique sans hauteur fixe : pas de petite fenêtre de discussion à faire défiler.
-        chat_box = st.container()
+        # Affichage des derniers messages sans zone de défilement interne
+        for message in st.session_state.messages[-4:]:
 
-        for message in st.session_state.messages[-12:]:
-            with chat_box.chat_message(message["role"]):
+            with st.chat_message(message["role"]):
                 st.markdown(message["content"])
 
-        if not api_key:
-            st.caption("Vous pouvez discuter directement, sans configurer de clé API.")
-        else:
-            st.caption("Le service de réponse en ligne est activé.")
+        # Entrée utilisateur
+        question = st.chat_input(
+            "Écrivez votre question ici..."
+        )
 
-# Le champ de saisie Streamlit est placé après les colonnes afin de rester utilisable.
-prompt = st.chat_input("Écrivez votre question ici…")
-if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
+        if question:
 
-    if api_key:
-        with st.spinner("Préparation de la réponse..."):
-            reponse_gemini, info_gemini = appeler_gemini(prompt, contexte_ia, api_key)
+            st.session_state.messages.append({
+                "role": "user",
+                "content": question
+            })
 
-        if reponse_gemini:
-            reponse = reponse_gemini
-            st.session_state.mode_assistant = f"Gemini ({info_gemini})"
-        else:
-            reponse = reponse_locale(prompt)
-            reponse += (
-                "\n\n*Le service Gemini n'a pas répondu. La réponse est fournie "
-                "par l'assistant local.*"
-            )
-            st.session_state.mode_assistant = "Mode local"
-    else:
-        reponse = reponse_locale(prompt)
-        st.session_state.mode_assistant = "Mode local"
+            reponse = repondre_question(question)
 
-    st.session_state.messages.append({"role": "assistant", "content": reponse})
-    st.rerun()
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": reponse
+            })
 
-# Petit indicateur de disponibilité sous l'interface.
-mode_actuel = st.session_state.get(
-    "mode_assistant",
-    "Gemini disponible sous réserve de compatibilité" if api_key else "Mode local",
+            st.rerun()
+
+
+# ============================================================
+# 8. NOTE DE FIN
+# ============================================================
+
+st.markdown(
+    """
+    <div class="small-note">
+        Les résultats sont des estimations basées sur les paramètres
+        et hypothèses du projet, et non des mesures électriques en temps réel.
+    </div>
+    """,
+    unsafe_allow_html=True
 )
-st.caption(f"Réponse : {mode_actuel}")
