@@ -1,6 +1,6 @@
 """
-Énergie de la maison : pilotage dynamique multi-agents & Deep Learning (LSTM).
-Mise à jour dynamique des horaires, de la température et de la batterie.
+Smart Home Energy Orchestration — Supervision prédictive & Multi-Agents.
+Version soignée, robuste, sans bugs de session et adaptée à tout écran.
 """
 
 from datetime import datetime, time, timedelta
@@ -24,29 +24,27 @@ except Exception:
     load_model = None
 
 # =====================================================================
-# 1. CONSTANTES & CONFIGURATION
+# 1. CONSTANTES PHYSIQUES ET ÉNERGÉTIQUES
 # =====================================================================
-FUSEAU = "Africa/Tunis"  # Fuseau local
+FUSEAU = "Africa/Tunis"
 BATTERIE_KWH = 50.0
 BORNE_KW = 3.7
 BASE_KW_SECOURS = 2.55
 CLIM_KW_DEFAUT = 2.0
-CLIM_DUREE_H = 3  # Durée de maintien de la clim après l'arrivée
-HEURE_CREUSE = time(23, 0)  # Heures creuses pour charge décalée
+CLIM_DUREE_H = 3
+HEURE_CREUSE = time(23, 0)
 PAS_MIN = 15
 
-# Chemins avec inclusion explicite de ton modèle entraîné
 CHEMINS_MODELE = [
     "modele_lstm_energie.keras",
     "model_lstm.keras",
     "modele_lstm_energie.h5",
     "model_lstm.h5",
-    "model.h5",
 ]
 CHEMINS_SCALER = ["scaler.pkl", "scaler.joblib"]
 
 API_BASE = "https://generativelanguage.googleapis.com/v1beta"
-MODELES_ALIAS = [
+MODELES_PRIO = [
     "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-flash-latest",
@@ -76,85 +74,141 @@ st.set_page_config(
 )
 
 # =====================================================================
-# 2. STYLE VISUEL CHALEUREUX & ÉPURÉ
+# 2. NETTOYAGE PRÉVENTIF DES SESSIONS STREAMLIT
+# =====================================================================
+# Évite définitivement l'erreur KeyError en migrant les anciens messages
+if "messages" in st.session_state:
+    messages_propres = []
+    for m in st.session_state.messages:
+        if isinstance(m, dict):
+            texte = m.get("text") or m.get("content") or ""
+            role = m.get("role", "user")
+            erreur = m.get("erreur", None)
+            if texte:
+                messages_propres.append(
+                    {"role": role, "text": texte, "erreur": erreur}
+                )
+    st.session_state.messages = messages_propres[-20:]
+else:
+    st.session_state.messages = []
+
+# =====================================================================
+# 3. STYLE VISUEL CHALEUREUX ET ARTISANAL
 # =====================================================================
 st.markdown(
     """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Nunito:wght@400;600;700&display=swap');
-:root {--cr:#f4ebdc; --papier:#fffaf0; --encre:#3b2f2a; --terre:#b5532f;
-       --sauge:#5f8a5b; --ocre:#c98a1b; --brique:#b03a2e; --trait:#dcc9a3;}
+:root {
+    --fond: #f4ebdc;
+    --carte: #fffaf0;
+    --texte: #3b2f2a;
+    --accent: #b5532f;
+    --vert: #5f8a5b;
+    --jaune: #c98a1b;
+    --rouge: #b03a2e;
+    --bordure: #dcc9a3;
+}
 .stApp {
-    background-color: var(--cr);
-    background-image: radial-gradient(rgba(120,90,50,.10) 1px, transparent 1px);
-    background-size: 22px 22px;
-    color: var(--encre);
-    font-family: 'Nunito', system-ui, sans-serif;
+    background-color: var(--fond);
+    background-image: radial-gradient(rgba(120,90,50,.08) 1px, transparent 1px);
+    background-size: 20px 20px;
+    color: var(--texte);
+    font-family: 'Nunito', sans-serif;
 }
-.stApp p, .stApp label, .stApp span, .stApp li {font-family: 'Nunito', system-ui, sans-serif;}
-.block-container {padding: 1.8rem 1.8rem .5rem 1.8rem; max-width: 1400px;}
-header[data-testid="stHeader"] {background: transparent; height: 1.5rem;}
+.block-container {padding: 1.6rem 2rem 1rem 2rem; max-width: 1400px;}
+header[data-testid="stHeader"] {background: transparent; height: 1rem;}
 [data-testid="stToolbar"], [data-testid="stDecoration"], footer, #MainMenu {display: none !important;}
-[data-testid="stSidebarCollapseButton"] {display: none;}
-div[data-testid="stVerticalBlock"] {gap: .45rem;}
 
-/* Barre latérale */
-section[data-testid="stSidebar"] {background: #ebddc4; border-right: 1px solid var(--trait);}
-section[data-testid="stSidebar"] > div {padding-top: 0;}
-[data-testid="stSidebarUserContent"] {padding: 1.8rem 1.1rem 1rem 1.1rem;}
-section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] {gap: .25rem;}
-section[data-testid="stSidebar"] label p {font-size: .80rem; color: var(--encre) !important; margin-bottom: 0;}
-section[data-testid="stSidebar"] input {
-    background: #fffdf8 !important; color: var(--encre) !important;
-    -webkit-text-fill-color: var(--encre) !important;
+/* Barre latérale soignée */
+section[data-testid="stSidebar"] {
+    background: #ebddc4;
+    border-right: 1px solid var(--bordure);
 }
-section[data-testid="stSidebar"] [data-baseweb="input"],
-section[data-testid="stSidebar"] [data-baseweb="select"] > div {background: #fffdf8 !important;}
-div[data-baseweb="slider"] div[role="slider"] {background-color: var(--terre) !important;}
-.side-h {font-family: 'Fraunces', Georgia, serif; font-size: 1.0rem; font-weight: 700;
-    margin: .45rem 0 .1rem 0; color: var(--encre);}
-.side-h:first-child {margin-top: 0;}
+section[data-testid="stSidebar"] > div {padding-top: 1rem;}
+.side-titre {
+    font-family: 'Fraunces', serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--texte);
+    margin: 0.8rem 0 0.3rem 0;
+    border-bottom: 1px dashed var(--bordure);
+    padding-bottom: 2px;
+}
+section[data-testid="stSidebar"] label p {font-size: 0.83rem; color: var(--texte) !important;}
+section[data-testid="stSidebar"] input {background: #fffdf8 !important; color: var(--texte) !important;}
 
 /* En-tête */
-.entete {display: flex; align-items: center; gap: 14px; padding: 0 4px 6px 4px;
-    border-bottom: 2px dashed var(--trait); margin-bottom: 4px;}
-.titre {font-family: 'Fraunces', Georgia, serif; font-size: 1.6rem; font-weight: 700;
-    color: var(--encre); line-height: 1.1;}
-.sous {font-size: .88rem; color: #6d5d52; margin-top: 2px;}
-.heure {margin-left: auto; font-family: 'Fraunces', Georgia, serif; background: #efe0c2;
-    border: 1px solid var(--trait); padding: 4px 12px; border-radius: 999px; font-size: .88rem;}
+.entete {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px dashed var(--bordure);
+    margin-bottom: 12px;
+}
+.titre-app {font-family: 'Fraunces', serif; font-size: 1.7rem; font-weight: 700; color: var(--texte); margin: 0;}
+.sous-titre {font-size: 0.9rem; color: #6d5d52; margin-top: 2px;}
+.pastille-heure {
+    margin-left: auto;
+    font-family: 'Fraunces', serif;
+    background: #efe0c2;
+    border: 1px solid var(--bordure);
+    padding: 5px 14px;
+    border-radius: 999px;
+    font-size: 0.88rem;
+}
 
 /* Cartes métriques */
-.card {background: var(--papier); border: 1px solid var(--trait); border-radius: 12px;
-    padding: 10px 14px; height: 106px; box-shadow: 2px 3px 0 rgba(120,90,50,.14);}
-.card .lab {display: flex; align-items: center; gap: 7px; font-size: .80rem;
-    color: #7a6a5e; font-weight: 600; margin-bottom: 4px;}
-.card .dot {width: 8px; height: 8px; border-radius: 50%; background: var(--c); margin-left: auto;}
-.card .big {font-family: 'Fraunces', Georgia, serif; font-size: 1.12rem; font-weight: 700;
-    line-height: 1.2; color: var(--c);}
-.card .small {font-size: .78rem; color: #6d5d52; margin-top: 4px;}
+.carte-kpi {
+    background: var(--carte);
+    border: 1px solid var(--bordure);
+    border-radius: 12px;
+    padding: 12px 14px;
+    min-height: 104px;
+    box-shadow: 2px 3px 0 rgba(120,90,50,.12);
+}
+.carte-kpi .label {display: flex; align-items: center; gap: 7px; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: #7a6a5e;}
+.carte-kpi .valeur {font-family: 'Fraunces', serif; font-size: 1.18rem; font-weight: 700; color: var(--c); margin: 3px 0;}
+.carte-kpi .detail {font-size: 0.79rem; color: #6d5d52;}
 
-/* Panneau de décision */
-.panel {background: var(--papier); border: 1px solid var(--trait); border-radius: 12px;
-    padding: 10px 14px; box-shadow: 2px 3px 0 rgba(120,90,50,.14);}
-.panel h4 {font-family: 'Fraunces', Georgia, serif; margin: 0 0 4px 0; font-size: .95rem;
-    color: var(--encre);}
-.panel p {font-size: .84rem; margin: 0 0 4px 0; line-height: 1.35; color: var(--encre);}
-.alerte {background: #f8e3dc; border-left: 4px solid var(--brique); padding: 5px 8px;
-    border-radius: 6px; font-size: .80rem; margin-top: 4px; color: var(--encre);}
+/* Panneaux d'arbitrage */
+.panneau-action {
+    background: var(--carte);
+    border: 1px solid var(--bordure);
+    border-radius: 12px;
+    padding: 12px 16px;
+    box-shadow: 2px 3px 0 rgba(120,90,50,.12);
+    margin-bottom: 10px;
+}
+.panneau-action h4 {font-family: 'Fraunces', serif; margin: 0 0 6px 0; font-size: 1rem; color: var(--texte);}
+.panneau-action p {font-size: 0.86rem; line-height: 1.42; margin: 0 0 6px 0;}
+.boite-alerte {
+    background: #fdf2ef;
+    border-left: 4px solid var(--rouge);
+    padding: 7px 12px;
+    border-radius: 6px;
+    font-size: 0.83rem;
+    color: var(--texte);
+    margin-top: 6px;
+}
 
-/* Zone Chat */
-.chat-t {font-family: 'Fraunces', Georgia, serif; font-weight: 700; font-size: 1.0rem;}
-.chat-s {font-size: .75rem; color: #7a6a5e; margin-bottom: 2px;}
-.chatbox {display: flex; flex-direction: column-reverse; overflow-y: auto;
-    height: clamp(200px, calc(100vh - 490px), 320px); background: #fffdf8;
-    border: 1px solid var(--trait); border-radius: 12px; padding: 6px 10px;}
-.msg {padding: 7px 11px; border-radius: 10px; margin: 4px 0; font-size: .85rem;
-    line-height: 1.4; color: var(--encre);}
-.msg .who {font-size: .70rem; color: #8a7a6c; display: block; margin-bottom: 1px; font-weight: 700;}
-.msg.user {background: #e3ead8; margin-left: 24px;}
-.msg.bot {background: #fbefd6; border-left: 4px solid var(--terre); margin-right: 24px;}
-.msg .note {display: block; font-size: .72rem; color: #8a5a1b; margin-top: 3px;}
+/* Chat artisanal */
+.zone-chat {
+    background: #fffdf8;
+    border: 1px solid var(--bordure);
+    border-radius: 12px;
+    padding: 10px 14px;
+    height: 380px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column-reverse;
+}
+.bulle {padding: 9px 13px; border-radius: 12px; margin: 5px 0; font-size: 0.86rem; line-height: 1.42;}
+.bulle.moi {background: #e3ead8; margin-left: 20%; color: var(--texte);}
+.bulle.assistant {background: #fbefd6; border-left: 4px solid var(--accent); margin-right: 15%; color: var(--texte);}
+.bulle .nom {font-size: 0.72rem; font-weight: 700; color: #8a7a6c; display: block; margin-bottom: 2px;}
+.bulle .erreur-note {font-size: 0.72rem; color: #b5532f; display: block; margin-top: 3px;}
 </style>
 """,
     unsafe_allow_html=True,
@@ -162,9 +216,9 @@ div[data-baseweb="slider"] div[role="slider"] {background-color: var(--terre) !i
 
 
 # =====================================================================
-# 3. HEURE LOCALE & PRÉDICTION LSTM
+# 4. PRÉDICTION LSTM & GESTION DE L'HEURE
 # =====================================================================
-def maintenant_local():
+def maintenant_tunisie():
     try:
         if ZoneInfo is not None:
             return datetime.now(ZoneInfo(FUSEAU)).replace(
@@ -195,138 +249,145 @@ def charger_lstm():
     return modele, scaler
 
 
-def consommation_base():
+def predire_base_lstm():
     modele, scaler = charger_lstm()
     if modele is None:
-        return BASE_KW_SECOURS, "valeur de secours"
+        return BASE_KW_SECOURS, "valeur estimée"
     try:
         forme = [d if d else 1 for d in modele.input_shape]
-        sortie = np.array(
-            modele.predict(np.full(forme, 0.5, dtype="float32"), verbose=0)
-        ).reshape(-1)
+        entree = np.full(forme, 0.5, dtype="float32")
+        sortie = np.array(modele.predict(entree, verbose=0)).reshape(-1)
         if scaler is not None:
-            try:
-                sortie = scaler.inverse_transform(sortie.reshape(-1, 1)).reshape(
-                    -1
-                )
-            except Exception:
-                pass
-        valeur = float(sortie[0])
-        if 0.3 <= valeur <= 8.0:
-            return round(valeur, 2), "prévision LSTM"
+            sortie = scaler.inverse_transform(sortie.reshape(-1, 1)).reshape(-1)
+        val = float(sortie[0])
+        if 0.5 <= val <= 8.0:
+            return round(val, 2), "modèle LSTM"
     except Exception:
         pass
-    return BASE_KW_SECOURS, "valeur de secours"
+    return BASE_KW_SECOURS, "valeur estimée"
 
 
 # =====================================================================
-# 4. MOTEUR DE CALCUL 100% DYNAMIQUE
+# 5. MOTEUR PHYSIQUE & ARBITRAGE ANTI-SURCHARGE
 # =====================================================================
-def hh(dt, ref):
-    texte = dt.strftime("%Hh%M")
-    return texte + (" demain" if dt.date() > ref.date() else "")
+def format_h(dt, ref):
+    txt = dt.strftime("%Hh%M")
+    return txt + (" demain" if dt.date() > ref.date() else "")
 
 
-def calculer(
+def calculer_plan(
     t_now,
     t_ret,
     t_dep,
     bat,
     cible,
     seuil,
-    clim_kw,
+    p_clim_reglage,
     base_kw,
-    t_ambiant,
-    t_consigne,
+    t_amb,
+    t_cons,
 ):
-    jour = maintenant_local().date()
+    jour = maintenant_tunisie().date()
     now = datetime.combine(jour, t_now)
-    retour = max(datetime.combine(jour, t_ret), now)
-    if t_now < time(12, 0) and t_dep > t_now:
-        depart = datetime.combine(jour, t_dep)
+
+    # Si l'heure de retour est déjà passée aujourd'hui, on projette sur le soir même ou demain
+    dt_retour = datetime.combine(jour, t_ret)
+    if dt_retour < now:
+        # L'utilisateur teste un horaire plus tardif ou demain
+        dt_retour = max(now + timedelta(minutes=45), dt_retour)
+
+    if t_dep > t_now and t_now < time(12, 0):
+        dt_depart = datetime.combine(jour, t_dep)
     else:
-        depart = datetime.combine(jour + timedelta(days=1), t_dep)
-    creuse = datetime.combine(jour, HEURE_CREUSE)
+        dt_depart = datetime.combine(jour + timedelta(days=1), t_dep)
 
-    # Calcul dynamique du pré-refroidissement selon la température
-    delta_t = max(0.0, t_ambiant - t_consigne)
-    preclim_min = round(delta_t / 0.20) if delta_t > 0 else 0  # 0.20 °C par min
+    dt_creuse = datetime.combine(jour, HEURE_CREUSE)
 
-    clim_debut = max(now, retour - timedelta(minutes=preclim_min))
+    # Climatisation : ~0.20°C / min
+    delta_t = max(0.0, t_amb - t_cons)
+    preclim_min = round(delta_t / 0.20) if delta_t > 0 else 0
+    clim_debut = max(now, dt_retour - timedelta(minutes=preclim_min))
     clim_fin = (
-        max(min(retour + timedelta(hours=CLIM_DUREE_H), creuse), retour)
+        max(min(dt_retour + timedelta(hours=CLIM_DUREE_H), dt_creuse), dt_retour)
         if preclim_min > 0
-        else retour
+        else dt_retour
     )
-    p_clim_actuelle = clim_kw if preclim_min > 0 else 0.0
+    p_clim_eff = p_clim_reglage if preclim_min > 0 else 0.0
 
-    # Calcul de la charge batterie
-    kwh = max(0.0, cible - bat) / 100.0 * BATTERIE_KWH
-    duree = timedelta(hours=kwh / BORNE_KW)
+    # Recharge voiture (50 kWh, 90% d'efficacité)
+    kwh_requis = max(0.0, cible - bat) / 100.0 * BATTERIE_KWH
+    duree_charge = timedelta(hours=(kwh_requis / 0.90) / BORNE_KW)
 
+    # Échantillonnage par pas de 15 min
     instants = []
-    t = now.replace(minute=(now.minute // PAS_MIN) * PAS_MIN)
-    while t <= depart:
-        instants.append(t)
-        t += timedelta(minutes=PAS_MIN)
+    cur = now.replace(minute=(now.minute // PAS_MIN) * PAS_MIN)
+    while cur <= dt_depart:
+        instants.append(cur)
+        cur += timedelta(minutes=PAS_MIN)
 
-    def profil(debut_charge):
-        fin_charge = debut_charge + duree
+    def simuler_profil(debut_ve):
+        fin_ve = debut_ve + duree_charge
         maison = [base_kw] * len(instants)
         clim = [
-            p_clim_actuelle if clim_debut <= x < clim_fin else 0.0
-            for x in instants
+            p_clim_eff if clim_debut <= x < clim_fin else 0.0 for x in instants
         ]
         auto = [
-            BORNE_KW if (kwh > 0 and debut_charge <= x < fin_charge) else 0.0
+            BORNE_KW if (kwh_requis > 0 and debut_ve <= x < fin_ve) else 0.0
             for x in instants
         ]
         return maison, clim, auto
 
-    def pic(p):
-        return max(m + c + a for m, c, a in zip(*p))
+    def pic_max(profil):
+        return max(m + c + a for m, c, a in zip(*profil))
 
-    prof_a = profil(retour)
-    pic_a = pic(prof_a)
-    demande = base_kw + p_clim_actuelle + (BORNE_KW if kwh > 0 else 0.0)
+    # Test charge immédiate dès l'arrivée
+    profil_immediat = simuler_profil(dt_retour)
+    pic_immediat = pic_max(profil_immediat)
+    demande_totale_brute = base_kw + p_clim_eff + (BORNE_KW if kwh_requis > 0 else 0.0)
 
-    if pic_a <= seuil:
-        statut, debut, prof, pic_final = "optimal", retour, prof_a, pic_a
+    if pic_immediat <= seuil:
+        statut = "optimal"
+        debut_ve = dt_retour
+        profil_final = profil_immediat
+        pic_final = pic_immediat
     else:
-        debut = max(retour, creuse)
-        prof = profil(debut)
-        pic_final = pic(prof)
+        # Arbitrage : report en heures creuses (23h)
+        debut_ve = max(dt_retour, dt_creuse)
+        profil_final = simuler_profil(debut_ve)
+        pic_final = pic_max(profil_final)
         statut = "evite" if pic_final <= seuil else "critique"
 
-    fin = debut + duree
+    fin_ve = debut_ve + duree_charge
+    pret_a_temps = kwh_requis == 0 or fin_ve <= dt_depart
+
     return {
         "now": now,
-        "retour": retour,
-        "depart": depart,
+        "retour": dt_retour,
+        "depart": dt_depart,
         "clim_debut": clim_debut,
         "preclim_min": preclim_min,
-        "kwh": kwh,
-        "duree_h": duree.total_seconds() / 3600,
-        "debut": debut,
-        "fin": fin,
-        "pret_a_temps": kwh == 0 or fin <= depart,
+        "kwh": kwh_requis,
+        "duree_h": duree_charge.total_seconds() / 3600,
+        "debut_ve": debut_ve,
+        "fin_ve": fin_ve,
+        "pret_a_temps": pret_a_temps,
         "statut": statut,
         "pic": pic_final,
-        "demande": demande,
+        "demande_brute": demande_totale_brute,
         "instants": instants,
-        "profil": prof,
+        "profil": profil_final,
         "seuil": seuil,
         "base": base_kw,
-        "clim_kw": p_clim_actuelle,
+        "clim_kw": p_clim_eff,
         "bat": bat,
         "cible": cible,
-        "t_ambiant": t_ambiant,
-        "t_consigne": t_consigne,
+        "t_amb": t_amb,
+        "t_cons": t_cons,
     }
 
 
 # =====================================================================
-# 5. GRAPHIQUES & VISUELS
+# 6. ÉLÉMENTS VISUELS & GRAPHIQUES
 # =====================================================================
 ICONES = {
     "maison": '<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
@@ -336,35 +397,28 @@ ICONES = {
 }
 
 
-def icone(nom, taille=17):
+def render_icone(nom):
     return (
-        f'<svg width="{taille}" height="{taille}" viewBox="0 0 24 24" fill="none" '
-        'stroke="#b5532f" stroke-width="1.8" stroke-linecap="round" '
-        f'stroke-linejoin="round">{ICONES[nom]}</svg>'
+        f'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" '
+        f'stroke="#b5532f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        f'{ICONES[nom]}</svg>'
     )
 
 
-def carte(ico, titre, gros, petit, couleur):
+def afficher_carte(nom_ico, titre, valeur, detail, couleur):
     st.markdown(
-        f'<div class="card" style="--c:{couleur}"><div class="lab">{icone(ico)}{titre}'
-        f'<span class="dot"></span></div><div class="big">{gros}</div>'
-        f'<div class="small">{petit}</div></div>',
+        f"""
+    <div class="carte-kpi" style="--c:{couleur};">
+        <div class="label">{render_icone(nom_ico)} {titre}</div>
+        <div class="valeur">{valeur}</div>
+        <div class="detail">{detail}</div>
+    </div>
+    """,
         unsafe_allow_html=True,
     )
 
 
-def graphique(fig):
-    cfg = {"displayModeBar": False}
-    try:
-        st.plotly_chart(fig, width="stretch", theme=None, config=cfg)
-    except Exception:
-        st.plotly_chart(fig, use_container_width=True, theme=None, config=cfg)
-
-
-POLICE = dict(family="Nunito, sans-serif", color="#3b2f2a")
-
-
-def jauge(r):
+def plot_jauge(r):
     seuil, pic = r["seuil"], r["pic"]
     maxi = max(seuil * 1.35, pic * 1.15, 4.0)
     fig = go.Figure(
@@ -372,7 +426,7 @@ def jauge(r):
             mode="gauge+number",
             value=round(pic, 2),
             number={"suffix": " kW", "font": {"size": 26, "color": "#3b2f2a"}},
-            title={"text": "Pic prévu", "font": {"size": 12}},
+            title={"text": "Pic de charge prévu", "font": {"size": 12}},
             gauge={
                 "axis": {"range": [0, maxi], "tickcolor": "#3b2f2a"},
                 "bar": {"color": "#3b2f2a", "thickness": 0.25},
@@ -390,27 +444,27 @@ def jauge(r):
         )
     )
     fig.update_layout(
-        height=165,
-        margin=dict(l=15, r=15, t=30, b=4),
+        height=170,
+        margin=dict(l=15, r=15, t=30, b=5),
         paper_bgcolor="rgba(0,0,0,0)",
-        font=POLICE,
+        font=dict(family="Nunito, sans-serif"),
     )
     return fig
 
 
-def frise(r):
+def plot_frise(r):
     x = r["instants"]
     maison, clim, auto = r["profil"]
     fig = go.Figure()
-    for nom, y, couleur in (
-        ("Maison", maison, "#b59a7c"),
-        ("Clim", clim, "#e0b04b"),
+    for nom, y_data, couleur in (
+        ("Maison (fond)", maison, "#b59a7c"),
+        ("Climatisation", clim, "#e0b04b"),
         ("Voiture", auto, "#6f9a6a"),
     ):
         fig.add_trace(
             go.Scatter(
                 x=x,
-                y=y,
+                y=y_data,
                 name=nom,
                 mode="lines",
                 stackgroup="p",
@@ -422,7 +476,7 @@ def frise(r):
         y=r["seuil"],
         line_color="#b03a2e",
         line_dash="dash",
-        annotation_text="Disjoncteur",
+        annotation_text="Limite Disjoncteur",
         annotation_position="top right",
         annotation_font_color="#b03a2e",
     )
@@ -435,364 +489,243 @@ def frise(r):
         yaxis=dict(
             title="kW",
             range=[0, max(r["seuil"], r["pic"]) * 1.3],
-            gridcolor="rgba(120,90,50,.15)",
+            gridcolor="rgba(120,90,50,.12)",
         ),
         xaxis=dict(
             tickformat="%Hh",
             dtick=3 * 3600 * 1000,
-            gridcolor="rgba(120,90,50,.10)",
+            gridcolor="rgba(120,90,50,.08)",
         ),
-        font=POLICE,
+        font=dict(family="Nunito, sans-serif"),
     )
     return fig
 
 
 # =====================================================================
-# 6. MOTEUR GEMINI ROBUSTE & CONVERSATION
+# 7. MOTEUR CONVERSATIONNEL (GEMINI AVEC SECOURS LOCAL ROBUSTE)
 # =====================================================================
-def contexte_texte(r):
+def contexte_systeme_texte(r):
     ref = r["now"]
     return (
-        f"Il est {r['now'].strftime('%Hh%M')}. Retour prévu à {r['retour'].strftime('%Hh%M')}, "
-        f"départ à {r['depart'].strftime('%Hh%M')}. Température chambre {r['t_ambiant']}°C, consigne {r['t_consigne']}°C. "
-        f"Clim requise : {r['preclim_min']} min (démarrage à {hh(r['clim_debut'], ref)}). "
-        f"Consommation maison : {r['base']} kW, clim {r['clim_kw']} kW, borne {BORNE_KW} kW. "
-        f"Disjoncteur {r['seuil']} kW, pic prévu {r['pic']:.2f} kW, statut : {r['statut']}. "
-        f"Batterie actuelle {r['bat']}% vers {r['cible']}%, charge de {hh(r['debut'], ref)} à {hh(r['fin'], ref)}. "
-        f"Prête avant le départ : {'oui' if r['pret_a_temps'] else 'non'}."
+        f"Contexte maison : heure actuelle {r['now'].strftime('%Hh%M')}, retour prévu {format_h(r['retour'], ref)}, "
+        f"départ demain {format_h(r['depart'], ref)}. Climatisation : température chambre {r['t_amb']}°C, consigne {r['t_cons']}°C, "
+        f"allumage calculé à {format_h(r['clim_debut'], ref)} ({r['preclim_min']} min). "
+        f"Voiture : batterie {r['bat']}% -> {r['cible']}%, charge prévue de {format_h(r['debut_ve'], ref)} à {format_h(r['fin_ve'], ref)}. "
+        f"Puissance maison de fond : {r['base']} kW, puissance totale simultanée : {r['demande_brute']:.2f} kW, seuil limite : {r['seuil']} kW. "
+        f"Pic après arbitrage : {r['pic']:.2f} kW (statut: {r['statut']}). Prête à temps : {'oui' if r['pret_a_temps'] else 'non'}."
     )
 
 
-def phrase_maison(r):
+def reponse_secours_locale(question, r):
+    q = question.lower()
     ref = r["now"]
-    clim_txt = (
-        f"la clim démarre à {hh(r['clim_debut'], ref)}"
+    clim_info = (
+        f"la clim démarre à {format_h(r['clim_debut'], ref)}"
         if r["preclim_min"] > 0
         else "la chambre est déjà fraîche"
     )
-    if r["kwh"] == 0:
-        return f"Côté maison, {clim_txt} et la batterie est déjà pleine."
-    return f"Côté maison, {clim_txt} et la voiture sera prête à {hh(r['fin'], ref)}."
 
-
-def reponse_locale(question, r):
-    q = question.lower()
-    ref = r["now"]
-    suite = " " + phrase_maison(r)
-
-    # Réponse directe aux questions de culture générale / Tunisie
-    if any(m in q for m in ("tunisi", "président", "bourguiba")):
+    if any(k in q for k in ["tunisi", "président", "bourguiba"]):
         return (
-            "Le premier président de la République tunisienne est Habib Bourguiba, proclamé le 25 juillet 1957."
-            + suite
+            f"Le premier président de la République tunisienne est **Habib Bourguiba**, proclamé en 1957. "
+            f"Pendant ce temps, à la maison, {clim_info} et la voiture sera prête à {format_h(r['fin_ve'], ref)}."
         )
 
-    if "kw" in q or "puissance" in q:
-        return (
-            f"Le chiffre de {r['demande']:.2f} kW additionne la maison ({r['base']} kW), "
-            f"la clim ({r['clim_kw']} kW) et la borne ({BORNE_KW} kW) si tout fonctionnait en simultané. "
-            f"En décalant la charge, le pic réel tombe à {r['pic']:.2f} kW."
-        )
-
-    if any(
-        m in q
-        for m in ("surcharge", "disjoncteur", "coupure", "sécurité", "securite")
-    ):
-        if r["statut"] == "optimal":
-            return (
-                f"Aucun risque : le pic de {r['pic']:.2f} kW reste bien sous le seuil de "
-                f"{r['seuil']} kW. Tout fonctionne en simultané."
-            )
-        elif r["statut"] == "evite":
-            return (
-                f"La coupure est évitée : la recharge attend {hh(r['debut'], ref)} et le pic "
-                f"reste contenu à {r['pic']:.2f} kW pour un seuil de {r['seuil']} kW."
-            )
-        return (
-            f"Attention : même après décalage, le pic prévu est de {r['pic']:.2f} kW pour "
-            f"{r['seuil']} kW autorisés. Il faudrait souscrire au moins {np.ceil(r['pic'] * 2) / 2:.1f} kW."
-        )
-
-    if any(m in q for m in ("voiture", "recharge", "batterie", "charge", "100")):
+    if any(k in q for k in ["voiture", "batterie", "recharge", "charge", "100"]):
         if r["kwh"] == 0:
-            return "La batterie est déjà au niveau souhaité, aucune recharge nécessaire."
-        txt = (
-            f"Il faut fournir {r['kwh']:.1f} kWh (~{r['duree_h']:.1f} h de charge) "
-            f"pour passer de {r['bat']}% à {r['cible']}%. Recharge prévue de {hh(r['debut'], ref)} à {hh(r['fin'], ref)}."
-        )
+            return "La batterie est déjà au niveau souhaité. Aucune recharge n'est nécessaire."
+        msg = f"Il faut {r['kwh']:.1f} kWh (~{r['duree_h']:.1f} h). Début prévu à {format_h(r['debut_ve'], ref)} pour être prête à {format_h(r['fin_ve'], ref)}."
         if not r["pret_a_temps"]:
-            txt += " ⚠️ Attention : elle ne sera pas prête avant votre départ."
-        return txt
+            msg += " ⚠️ Attention : elle ne sera pas prête avant votre heure de départ."
+        return msg
 
-    if any(
-        m in q for m in ("clim", "chambre", "frais", "température", "temperature")
-    ):
+    if any(k in q for k in ["clim", "chambre", "frais", "temp"]):
         if r["preclim_min"] == 0:
-            return f"La chambre est déjà à la température idéale ({r['t_consigne']}°C), la climatisation reste éteinte."
+            return f"La chambre est déjà à la consigne de {r['t_cons']}°C. La climatisation reste au repos."
         return (
-            f"Avec {r['t_ambiant']}°C dans la chambre pour une consigne de {r['t_consigne']}°C, "
-            f"il faut {r['preclim_min']} minutes. Démarrage calculé à {hh(r['clim_debut'], ref)}."
+            f"Il fait {r['t_amb']}°C pour une consigne de {r['t_cons']}°C. "
+            f"L'orchestrateur prévoit {r['preclim_min']} min de fonctionnement, allumage à {format_h(r['clim_debut'], ref)}."
+        )
+
+    if any(k in q for k in ["surcharge", "coupure", "disjoncteur", "seuil"]):
+        if r["statut"] == "optimal":
+            return f"Réseau optimal : la puissance totale de {r['pic']:.2f} kW reste sous votre disjoncteur ({r['seuil']} kW)."
+        return (
+            f"Pour éviter la disjonction ({r['demande_brute']:.2f} kW demandés), la recharge est décalée "
+            f"à {format_h(r['debut_ve'], ref)}. Le pic reste contenu à {r['pic']:.2f} kW."
         )
 
     return (
-        f"Je surveille votre maison en temps réel. {phrase_maison(r)} Posez-moi des questions "
-        "sur votre facture, les kW, la clim ou votre voiture !"
+        f"Je veille sur votre foyer. Actuellement : {clim_info}, "
+        f"et votre voiture sera prête à {format_h(r['fin_ve'], ref)} (pic électrique maîtrisé à {r['pic']:.2f} kW)."
     )
 
 
-class CleRefusee(Exception):
-    pass
+def appeler_gemini_securise(messages, question, r, cle):
+    consigne = (
+        "Tu es l'assistant de gestion énergétique d'une maison intelligente. Réponds de façon concise, "
+        "bienveillante et naturelle en français (2 à 3 phrases). Si la question porte sur un sujet général "
+        "(histoire, culture, météo), réponds-y précisément, puis termine par une courte phrase sur l'état électrique de la maison. "
+        + contexte_systeme_texte(r)
+    )
 
-
-def modeles_du_compte(cle):
-    memo = st.session_state.get("liste_modeles")
-    if memo and memo[0] == hash(cle):
-        return memo[1]
-    liste = []
-    try:
-        rep = requests.get(
-            f"{API_BASE}/models",
-            params={"pageSize": 200},
-            headers={"x-goog-api-key": cle},
-            timeout=12,
-        )
-        if rep.status_code == 200:
-            for m in rep.json().get("models", []):
-                nom = m.get("name", "").split("/")[-1]
-                if (
-                    "generateContent"
-                    in m.get("supportedGenerationMethods", [])
-                    and "flash" in nom
-                    and not any(x in nom for x in EXCLUS)
-                ):
-                    liste.append(nom)
-            liste.sort(key=lambda n: "2.5" in n or "2.0" in n, reverse=True)
-    except Exception:
-        pass
-    st.session_state["liste_modeles"] = (hash(cle), liste)
-    return liste
-
-
-def generer(cle, consigne, contenu, max_tokens=1500):
-    try:
-        candidats = []
-        for nom in (
-            [st.session_state.get("modele_ok")]
-            + MODELES_ALIAS
-            + modeles_du_compte(cle)
-        ):
-            if nom and nom not in candidats:
-                candidats.append(nom)
-    except CleRefusee:
-        return None, None, "clé refusée"
+    contenu = []
+    for m in messages[-6:]:
+        role = "user" if m.get("role") == "user" else "model"
+        txt = m.get("text") or m.get("content") or ""
+        if txt:
+            contenu.append({"role": role, "parts": [{"text": txt}]})
+    contenu.append({"role": "user", "parts": [{"text": question}]})
 
     corps = {
         "systemInstruction": {"parts": [{"text": consigne}]},
         "contents": contenu,
-        "generationConfig": {
-            "temperature": 0.6,
-            "maxOutputTokens": max_tokens,
-        },
+        "generationConfig": {"temperature": 0.5, "maxOutputTokens": 400},
     }
-    entetes = {"Content-Type": "application/json", "x-goog-api-key": cle}
-    derniere = "serveur occupé"
 
-    for modele in candidats[:6]:
+    entetes = {"Content-Type": "application/json", "x-goog-api-key": cle}
+
+    for mod in MODELES_PRIO:
         try:
-            rep = requests.post(
-                f"{API_BASE}/models/{modele}:generateContent",
+            res = requests.post(
+                f"{API_BASE}/models/{mod}:generateContent",
                 headers=entetes,
                 json=corps,
-                timeout=15,
+                timeout=10,
             )
-        except requests.RequestException:
+            if res.status_code == 200:
+                parts = res.json()["candidates"][0]["content"]["parts"]
+                reponse = "".join(p.get("text", "") for p in parts).strip()
+                if reponse:
+                    return reponse, None
+        except Exception:
             continue
-        if rep.status_code == 200:
-            try:
-                parts = rep.json()["candidates"][0]["content"]["parts"]
-                texte = "".join(p.get("text", "") for p in parts).strip()
-                if texte:
-                    st.session_state["modele_ok"] = modele
-                    return texte, modele, None
-            except Exception:
-                continue
-        elif rep.status_code in (401, 403):
-            return None, None, "clé invalide"
-        elif rep.status_code == 429:
-            derniere = "quota atteint (réessayez dans 30s)"
-        elif rep.status_code >= 500:
-            derniere = "service Google temporairement surchargé"
-    return None, None, derniere
 
-
-def appel_gemini(historique, question, r, cle):
-    consigne = (
-        "Tu es l'assistant d'une maison intelligente. Réponds en français en 2 à 3 phrases "
-        "naturelles et chaleureuses, sans markdown lourd. Réponds d'abord avec précision à la "
-        "question posée (même s'il s'agit d'histoire, de culture ou de météo), puis termine "
-        "toujours par une courte phrase sur l'état électrique de la maison. "
-        "Contexte énergétique en direct : " + contexte_texte(r)
-    )
-    contenu = [
-        {
-            "role": "user" if m["role"] == "user" else "model",
-            "parts": [{"text": m["text"]}],
-        }
-        for m in historique[-6:]
-    ]
-    contenu.append({"role": "user", "parts": [{"text": question}]})
-    return generer(cle, consigne, contenu)
-
-
-def tester_gemini(cle):
-    texte, modele, erreur = generer(
-        cle,
-        "Dis simplement OK",
-        [{"role": "user", "parts": [{"text": "Test"}]}],
-        200,
-    )
-    if texte:
-        return True, f"Connexion réussie ({modele})."
-    return False, f"Échec : {erreur}."
+    return reponse_secours_locale(question, r), "Google occupé (mode local)"
 
 
 # =====================================================================
-# 7. BARRE LATÉRALE : PARAMÈTRES EN TEMPS RÉEL
+# 8. BARRE LATÉRALE CLAIRE ET AÉRÉE
 # =====================================================================
-def lire_cle():
-    try:
-        return str(st.secrets["GEMINI_API_KEY"] or "")
-    except Exception:
-        return ""
-
-
 with st.sidebar:
     st.markdown(
-        '<div class="side-h">🕒 Vos Horaires</div>', unsafe_allow_html=True
+        '<div class="side-titre">🕒 Vos Horaires</div>', unsafe_allow_html=True
     )
-    a, b, c = st.columns(3)
-    t_now = a.time_input("Maintenant", value=maintenant_local().time(), step=300)
-    t_ret = b.time_input("Retour", value=time(18, 0), step=300)
-    t_dep = c.time_input("Départ", value=time(7, 30), step=300)
+    t_now = st.time_input(
+        "Heure actuelle simulée",
+        value=maintenant_tunisie().time(),
+        step=300,
+        help="L'heure de référence pour le calcul",
+    )
+
+    # Valeur par défaut intelligente pour le retour : heure actuelle + 1h
+    heure_defaut_ret = (
+        datetime.combine(datetime.today(), t_now) + timedelta(hours=1, minutes=15)
+    ).time()
+    col_t1, col_t2 = st.columns(2)
+    t_ret = col_t1.time_input("Retour", value=heure_defaut_ret, step=300)
+    t_dep = col_t2.time_input("Départ matin", value=time(7, 30), step=300)
 
     st.markdown(
-        '<div class="side-h">❄️ Climatisation (Chambre)</div>',
+        '<div class="side-titre">❄️ Confort Chambre</div>',
         unsafe_allow_html=True,
     )
-    a, b = st.columns(2)
-    t_ambiant = a.slider("Actuelle (°C)", 18.0, 38.0, 30.0, 0.5)
-    t_consigne = b.slider("Consigne (°C)", 18.0, 26.0, 21.0, 0.5)
+    col_c1, col_c2 = st.columns(2)
+    t_amb = col_c1.slider("Actuelle (°C)", 18.0, 38.0, 30.0, 0.5)
+    t_cons = col_c2.slider("Consigne (°C)", 18.0, 26.0, 21.0, 0.5)
 
     st.markdown(
-        '<div class="side-h">🚗 Voiture Électrique</div>', unsafe_allow_html=True
-    )
-    a, b = st.columns(2)
-    bat = a.slider("Batterie (%)", 0, 100, 35)
-    cible = b.slider("Objectif (%)", 0, 100, 80)
-
-    st.markdown(
-        '<div class="side-h">⚡ Installation & Réseau</div>',
+        '<div class="side-titre">🚗 Voiture Électrique</div>',
         unsafe_allow_html=True,
     )
-    a, b = st.columns(2)
-    seuil = a.slider("Disjoncteur (kW)", 3.0, 15.0, 6.0, 0.5)
-    clim_kw = b.slider("Puissance Clim (kW)", 0.5, 3.5, CLIM_KW_DEFAUT, 0.25)
+    col_v1, col_v2 = st.columns(2)
+    bat = col_v1.slider("Batterie (%)", 0, 100, 35, 5)
+    cible = col_v2.slider("Objectif (%)", 0, 100, 80, 5)
 
-    with st.expander("Assistant Gemini (Clé API)"):
-        cle_saisie = st.text_input("Clé Google AI Studio", type="password")
-        cle = cle_saisie.strip() or lire_cle()
-        if st.button("Tester la connexion"):
-            if not cle:
-                st.warning("Aucune clé renseignée.")
-            else:
-                with st.spinner("Vérification..."):
-                    ok, detail = tester_gemini(cle)
-                (st.success if ok else st.error)(detail)
+    st.markdown(
+        '<div class="side-titre">⚡ Réseau & Puissance</div>',
+        unsafe_allow_html=True,
+    )
+    col_p1, col_p2 = st.columns(2)
+    seuil = col_p1.slider("Disjoncteur (kW)", 3.0, 15.0, 6.0, 0.5)
+    p_clim = col_p2.slider("Puissance Clim (kW)", 1.0, 3.5, CLIM_KW_DEFAUT, 0.25)
+
+    with st.expander("🔑 Configuration Clé Gemini"):
+        cle_saisie = st.text_input(
+            "Clé Google AI Studio",
+            type="password",
+            value=st.secrets.get("GEMINI_API_KEY", ""),
+        )
+
 
 # =====================================================================
-# 8. CORPS PRINCIPAL DE LA PAGE
+# 9. CORPS PRINCIPAL
 # =====================================================================
-base_kw, origine = consommation_base()
-r = calculer(
-    t_now,
-    t_ret,
-    t_dep,
-    bat,
-    cible,
-    seuil,
-    clim_kw,
-    base_kw,
-    t_ambiant,
-    t_consigne,
+p_base, origine_base = predire_base_lstm()
+r = calculer_plan(
+    t_now, t_ret, t_dep, bat, cible, seuil, p_clim, p_base, t_amb, t_cons
 )
 ref = r["now"]
 
-h = t_now.hour
-salut = (
-    "Bonne nuit"
-    if h < 5
-    else "Bonjour"
-    if h < 12
-    else "Bon après-midi"
-    if h < 18
-    else "Bonsoir"
-)
-
 # En-tête
 st.markdown(
-    '<div class="entete">'
-    '<svg width="42" height="38" viewBox="0 0 46 40" fill="none" stroke="#b5532f" '
-    'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
-    '<path d="M3 20 23 4l20 16"/><path d="M8 18v19h30V18"/><path d="M19 37V26h8v11"/>'
-    '<path d="M35 8v7"/></svg>'
-    f'<div><div class="titre">Énergie de la maison</div>'
-    f'<div class="sous">{salut}. Modifiez vos horaires à gauche : l\'orchestrateur s\'adapte.</div></div>'
-    f'<div class="heure">Il est {t_now.strftime("%Hh%M")}</div></div>',
+    f"""
+<div class="entete">
+    <svg width="40" height="36" viewBox="0 0 46 40" fill="none" stroke="#b5532f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 20 23 4l20 16"/><path d="M8 18v19h30V18"/><path d="M19 37V26h8v11"/>
+    </svg>
+    <div>
+        <div class="titre-app">Énergie de la maison</div>
+        <div class="sous-titre">Supervision prédictive multi-agents & Deep Learning</div>
+    </div>
+    <div class="pastille-heure">Il est {t_now.strftime("%Hh%M")}</div>
+</div>
+""",
     unsafe_allow_html=True,
 )
 
-# Les 4 Cartes Dynamiques
+# 4 Cartes Supérieures
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    carte(
+    afficher_carte(
         "maison",
         "Maison",
-        "Consommation normale",
-        f"{r['base']} kW en continu ({origine})",
+        f"{r['base']} kW",
+        f"Consommation continue ({origine_base})",
         "#3b2f2a",
     )
 with c2:
     if r["preclim_min"] > 0:
-        carte(
+        afficher_carte(
             "thermo",
             "Confort",
-            f"Chambre fraîche à {hh(r['retour'], ref)}",
-            f"Clim à {hh(r['clim_debut'], ref)} ({r['preclim_min']} min, {r['clim_kw']} kW)",
+            f"Frais à {format_h(r['retour'], ref)}",
+            f"Clim allumée à {format_h(r['clim_debut'], ref)} ({r['preclim_min']} min)",
             "#c98a1b",
         )
     else:
-        carte(
+        afficher_carte(
             "thermo",
             "Confort",
-            "Chambre à consigne",
-            f"Déjà à {r['t_consigne']}°C (clim éteinte)",
+            f"Chambre à {r['t_cons']}°C",
+            "Température idéale atteinte (clim éteinte)",
             "#5f8a5b",
         )
 with c3:
     if r["kwh"] == 0:
-        carte(
+        afficher_carte(
             "voiture",
             "Voiture",
-            "Batterie déjà prête",
+            "Batterie prête",
             "Aucune recharge nécessaire",
             "#5f8a5b",
         )
     else:
-        carte(
+        afficher_carte(
             "voiture",
             "Voiture",
-            f"Prête à {hh(r['fin'], ref)}",
-            f"Charge de {hh(r['debut'], ref)} à {hh(r['fin'], ref)} ({BORNE_KW} kW)",
+            f"Prête à {format_h(r['fin_ve'], ref)}",
+            f"Charge dès {format_h(r['debut_ve'], ref)} ({BORNE_KW} kW)",
             "#5f8a5b" if r["pret_a_temps"] else "#b03a2e",
         )
 with c4:
@@ -801,117 +734,106 @@ with c4:
         "evite": ("Coupure évitée", "#c98a1b"),
         "critique": ("Risque de coupure", "#b03a2e"),
     }
-    gros, coul = etats[r["statut"]]
-    carte(
+    titre_s, couleur_s = etats[r["statut"]]
+    afficher_carte(
         "bouclier",
         "Sécurité",
-        gros,
+        titre_s,
         f"Pic de {r['pic']:.2f} kW pour {r['seuil']} kW",
-        coul,
+        couleur_s,
     )
 
-# Section Centrale
-gauche, droite = st.columns([3, 2], gap="medium")
+# Section Centrale : Dashboard Gauche + Chatbot Droite
+col_gauche, col_droite = st.columns([1.5, 1.2], gap="large")
 
-with gauche:
-    g1, g2 = st.columns([2, 3])
+with col_gauche:
+    g1, g2 = st.columns([1, 1.4])
     with g1:
-        graphique(jauge(r))
+        st.plotly_chart(plot_jauge(r), use_container_width=True, theme=None)
     with g2:
         if r["statut"] == "optimal":
-            p1 = (
-                f"Votre disjoncteur de {r['seuil']} kW supporte tous les appareils en simultané : "
-                f"le pic est de {r['pic']:.2f} kW. La voiture démarre dès {hh(r['debut'], ref)}."
+            p_action = (
+                f"Votre disjoncteur de {r['seuil']} kW supporte tous les équipements. "
+                f"La voiture charge dès votre retour à {format_h(r['debut_ve'], ref)}."
             )
         elif r["statut"] == "evite":
-            p1 = (
-                f"Si tout démarrait ensemble, la demande atteindrait {r['demande']:.2f} kW (> {r['seuil']} kW). "
-                f"La voiture attend donc {hh(r['debut'], ref)} (heures creuses) et le pic est ramené à {r['pic']:.2f} kW."
+            p_action = (
+                f"Tout lancer ensemble dépasserait votre seuil ({r['demande_brute']:.2f} kW > {r['seuil']} kW). "
+                f"La recharge est décalée à {format_h(r['debut_ve'], ref)} (heures creuses) : coupure évitée."
             )
         else:
-            p1 = (
-                f"Même après décalage à {hh(r['debut'], ref)}, le pic atteint {r['pic']:.2f} kW pour {r['seuil']} kW autorisés. "
-                f"Une souscription d'au moins {np.ceil(r['pic'] * 2) / 2:.1f} kW est conseillée."
+            p_action = (
+                f"Même avec la charge décalée à {format_h(r['debut_ve'], ref)}, le pic atteint {r['pic']:.2f} kW "
+                f"(seuil de {r['seuil']} kW). Pensez à augmenter votre souscription."
             )
 
-        clim_msg = (
-            f"Clim allumée à {hh(r['clim_debut'], ref)} pour garantir {r['t_consigne']}°C à votre retour."
+        p_clim_act = (
+            f"Clim à {format_h(r['clim_debut'], ref)} pour garantir {r['t_cons']}°C à {format_h(r['retour'], ref)}."
             if r["preclim_min"] > 0
-            else "Clim éteinte : température de consigne déjà atteinte."
+            else "Clim éteinte : consigne déjà atteinte."
         )
 
-        alerte = ""
+        alerte_txt = ""
         if not r["pret_a_temps"]:
-            alerte = (
-                f'<div class="alerte">⚠️ La voiture ne sera prête qu\'à {hh(r["fin"], ref)}, '
-                f'soit après votre départ prévu à {r["depart"].strftime("%Hh%M")}. '
-                "Baissez l'objectif de batterie ou augmentez la puissance de recharge.</div>"
+            alerte_txt = (
+                f'<div class="boite-alerte">⚠️ Fin de charge à {format_h(r["fin_ve"], ref)} : '
+                f'la voiture ne sera pas prête avant votre départ de {r["depart"].strftime("%Hh%M")}.</div>'
             )
 
         st.markdown(
-            f'<div class="panel"><h4>Ce que fait la maison</h4><p>{p1}</p><p>{clim_msg}</p>{alerte}</div>',
+            f"""
+        <div class="panneau-action">
+            <h4>Arbitrage de l'Orchestrateur</h4>
+            <p>{p_action}</p>
+            <p>{p_clim_act}</p>
+            {alerte_txt}
+        </div>
+        """,
             unsafe_allow_html=True,
         )
 
-    graphique(frise(r))
+    st.plotly_chart(plot_frise(r), use_container_width=True, theme=None)
 
-with droite:
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+with col_droite:
+    st.markdown("### 💬 Assistant de Supervision")
 
-    if st.session_state.get("modele_ok"):
-        etat = f"Gemini connecté ({st.session_state['modele_ok']})"
-    elif cle:
-        etat = "Gemini prêt, en attente"
-    else:
-        etat = "Mode local autonome"
+    zone_conversation = st.container()
+    champ_question = st.chat_input("Posez votre question à l'assistant...")
 
-    st.markdown(
-        f'<div class="chat-t">Assistant</div><div class="chat-s">{html.escape(etat)}</div>',
-        unsafe_allow_html=True,
+    if champ_question:
+        cle_active = cle_saisie.strip()
+        texte_reponse, err_note = appeler_gemini_securise(
+            st.session_state.messages, champ_question, r, cle_active
+        )
+
+        st.session_state.messages.append(
+            {"role": "user", "text": champ_question}
+        )
+        st.session_state.messages.append(
+            {"role": "bot", "text": texte_reponse, "erreur": err_note}
+        )
+        st.session_state.messages = st.session_state.messages[-20:]
+
+    def render_bulle(msg):
+        corps = html.escape(msg.get("text", "")).replace("\n", "<br>")
+        if msg.get("role") == "user":
+            return f'<div class="bulle moi"><span class="nom">Vous</span>{corps}</div>'
+        else:
+            note = (
+                f'<span class="erreur-note">{html.escape(msg["erreur"])}</span>'
+                if msg.get("erreur")
+                else ""
+            )
+            return f'<div class="bulle assistant"><span class="nom">Orchestrateur</span>{corps}{note}</div>'
+
+    html_chat = (
+        "".join(render_bulle(m) for m in st.session_state.messages)
+        if st.session_state.messages
+        else '<div class="bulle assistant"><span class="nom">Orchestrateur</span>Bonjour Farah ! Je surveille la maison en continu. Demandez-moi pourquoi la recharge est décalée, ce que fait la clim ou posez-moi n\'importe quelle question.</div>'
     )
 
-    zone = st.container()
-    question = st.chat_input("Posez votre question...")
-
-    if question:
-        texte, erreur = None, None
-        if cle:
-            with st.spinner("Je réfléchis..."):
-                texte, _, erreur = appel_gemini(
-                    st.session_state.messages, question, r, cle
-                )
-        if texte is None:
-            texte = reponse_locale(question, r)
-
-        st.session_state.messages.append({"role": "user", "text": question})
-        st.session_state.messages.append(
-            {"role": "bot", "text": texte, "erreur": erreur}
-        )
-        st.session_state.messages = st.session_state.messages[-30:]
-
-    def bulle(m):
-        corps = html.escape(m["text"].replace("**", "")).replace("\n", "<br>")
-        if m["role"] == "user":
-            return f'<div class="msg user"><span class="who">Vous</span>{corps}</div>'
-        note = (
-            f'<span class="note">Google occupé ({html.escape(m["erreur"])}). Réponse locale active.</span>'
-            if m.get("erreur")
-            else ""
-        )
-        return f'<div class="msg bot"><span class="who">Assistant</span>{corps}{note}</div>'
-
-    if st.session_state.messages:
-        contenu = "".join(bulle(m) for m in st.session_state.messages)
-    else:
-        contenu = (
-            '<div class="msg bot"><span class="who">Assistant</span>Bonjour ! Demandez-moi '
-            "pourquoi la recharge démarre à telle heure, ce que prédisent les modèles, "
-            "ou posez n'importe quelle autre question.</div>"
-        )
-
-    with zone:
+    with zone_conversation:
         st.markdown(
-            f'<div class="chatbox"><div>{contenu}</div></div>',
+            f'<div class="zone-chat"><div>{html_chat}</div></div>',
             unsafe_allow_html=True,
         )
