@@ -7,16 +7,17 @@ import pandas as pd
 import plotly.graph_objects as go
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 
 # =====================================================================
 # 0. CONSTANTES MÉTIER
 # =====================================================================
-# Modèles Gemini essayés dans l'ordre (le premier qui répond est mémorisé)
 MODELES_GEMINI = [
     "gemini-2.5-flash",
     "gemini-2.0-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash-lite",
     "gemini-flash-latest",
-    "gemini-1.5-flash",
 ]
 API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
@@ -31,7 +32,7 @@ ECHEANCE_VE = (7, 30)
 P_BASE_SECOURS = 2.55
 
 # =====================================================================
-# 1. PAGE & DESIGN (beige et bleu, une seule page, sans icônes)
+# 1. PAGE & DESIGN
 # =====================================================================
 st.set_page_config(
     page_title="Smart Home Energy Orchestration",
@@ -45,10 +46,18 @@ st.markdown(
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
-.stApp { background-color: #F8F6F2; color: #0F1E36; }
+
+/* Fond sable + trame de plan d'architecte très discrète */
+.stApp {
+    color: #0F1E36;
+    background-color: #EDE5D6;
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44'%3E%3Cpath d='M44 0H0V44' fill='none' stroke='%230F1E36' stroke-opacity='0.055' stroke-width='1'/%3E%3C/svg%3E"),
+        linear-gradient(180deg, #E9E0CE 0%, #F3EDE1 55%, #EDE5D6 100%);
+}
 
 .block-container {
-    padding-top: 1rem !important;
+    padding-top: 0.9rem !important;
     padding-bottom: 0.5rem !important;
     padding-left: 2rem !important;
     padding-right: 2rem !important;
@@ -57,8 +66,8 @@ html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
 
 /* Sidebar */
 section[data-testid="stSidebar"] {
-    background-color: #0F1E36 !important;
-    border-right: 1px solid #1E2D4A;
+    background: linear-gradient(180deg, #0F1E36 0%, #162B4A 100%) !important;
+    border-right: 2px solid #B08D57;
 }
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] p,
@@ -66,54 +75,79 @@ section[data-testid="stSidebar"] h1,
 section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3,
 section[data-testid="stSidebar"] span,
-section[data-testid="stSidebar"] small { color: #F8F6F2 !important; }
+section[data-testid="stSidebar"] small { color: #F3EDE1 !important; }
 section[data-testid="stSidebar"] input {
     color: #0F1E36 !important;
-    background-color: #F8F6F2 !important;
+    background-color: #F3EDE1 !important;
 }
+section[data-testid="stSidebar"] button p { color: #0F1E36 !important; }
+
+/* Bannière */
+.banner {
+    display: flex; justify-content: space-between; align-items: center;
+    background: linear-gradient(100deg, #0F1E36 0%, #1B3A5C 100%);
+    border-radius: 12px;
+    padding: 12px 22px;
+    margin-bottom: 12px;
+    border-bottom: 3px solid #B08D57;
+    box-shadow: 0 3px 10px rgba(15, 30, 54, 0.18);
+}
+.banner h3 { margin: 0; color: #F6F1E7; font-size: 1.3rem; font-weight: 700; }
+.banner p { margin: 2px 0 0 0; color: #B9C4D3; font-size: 0.8rem; }
 
 /* Cartes */
 .user-card {
     background: #FFFFFF;
-    border: 1px solid #E5E0D8;
+    border: 1px solid #D6CBB8;
     border-radius: 10px;
     padding: 12px 16px;
-    box-shadow: 0 1px 4px rgba(15, 30, 54, 0.04);
-    min-height: 104px;
+    box-shadow: 0 2px 8px rgba(15, 30, 54, 0.10);
+    min-height: 108px;
 }
+.card-row { display: flex; gap: 12px; align-items: flex-start; }
+.icon-badge {
+    flex: 0 0 38px; height: 38px; border-radius: 50%;
+    background: #E1E9F2; color: #1D3557;
+    display: flex; align-items: center; justify-content: center;
+}
+.icon-badge svg { width: 20px; height: 20px; fill: none; stroke: currentColor;
+    stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .card-category {
-    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
-    font-weight: 700; color: #5B7A99; margin-bottom: 4px;
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.09em;
+    font-weight: 700; color: #3F5F82; margin-bottom: 3px;
 }
-.card-human-main {
-    font-size: 1.28rem; font-weight: 800; color: #0F1E36;
-    line-height: 1.2; margin-bottom: 6px;
-}
-.card-technical-sub { font-size: 0.78rem; color: #64748B; font-weight: 500; }
+.card-human-main { font-size: 1.25rem; font-weight: 800; line-height: 1.2; margin-bottom: 5px; }
+.card-technical-sub { font-size: 0.78rem; color: #475569; font-weight: 500; }
 
 /* Conteneurs natifs */
 div[data-testid="stVerticalBlockBorderWrapper"] {
     background-color: #FFFFFF;
-    border: 1px solid #E5E0D8 !important;
+    border: 1px solid #D6CBB8 !important;
     border-radius: 10px !important;
     padding: 10px 14px !important;
-    box-shadow: 0 1px 4px rgba(15, 30, 54, 0.03) !important;
+    box-shadow: 0 2px 8px rgba(15, 30, 54, 0.10) !important;
 }
 
-/* Chat sans avatars, avec un petit nom d'interlocuteur */
+/* Chat : sans avatars, messages bien distincts */
 [data-testid="stChatMessageAvatarUser"],
 [data-testid="stChatMessageAvatarAssistant"] { display: none !important; }
 .stChatMessage {
-    background-color: #FAF8F5 !important;
-    border: 1px solid #EAE5DD !important;
     border-radius: 8px !important;
     padding: 8px 12px !important;
     margin-bottom: 6px !important;
     font-size: 0.88rem !important;
+    background-color: #F7F3EB !important;
+    border: 1px solid #E2D9C8 !important;
+    border-left: 3px solid #B08D57 !important;
+}
+.stChatMessage:has([data-testid="stChatMessageAvatarUser"]) {
+    background-color: #E1E9F2 !important;
+    border: 1px solid #C9D6E6 !important;
+    border-left: 3px solid #1D3557 !important;
 }
 .who {
-    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em;
-    text-transform: uppercase; color: #5B7A99; margin-bottom: 2px;
+    font-size: 0.66rem; font-weight: 700; letter-spacing: 0.07em;
+    text-transform: uppercase; color: #3F5F82; margin-bottom: 2px;
 }
 
 #MainMenu, footer, [data-testid="stDecoration"], [data-testid="stToolbar"] { visibility: hidden; }
@@ -125,8 +159,30 @@ header[data-testid="stHeader"] { background: transparent; }
 
 
 def html(s: str) -> str:
-    """Supprime l'indentation pour que Markdown n'interprète pas le HTML comme du code."""
-    return "".join(line.strip() for line in s.splitlines())
+    """Aplatit le HTML (sans coller les phrases) pour éviter le rendu en bloc de code."""
+    return " ".join(line.strip() for line in s.splitlines() if line.strip())
+
+
+ICONES = {
+    "maison": '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+    "thermo": '<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/>',
+    "voiture": '<path d="M5 16l1.5-5a2 2 0 0 1 1.9-1.4h7.2a2 2 0 0 1 1.9 1.4L19 16"/><rect x="3" y="16" width="18" height="4" rx="1.5"/><path d="M7 18h.01M17 18h.01"/>',
+    "bouclier": '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+}
+
+
+def carte(icone, categorie, principal, sub, couleur="#0F1E36", accent="#1D3557"):
+    return html(f"""
+<div class="user-card" style="border-top:3px solid {accent};">
+<div class="card-row">
+<div class="icon-badge"><svg viewBox="0 0 24 24">{ICONES[icone]}</svg></div>
+<div>
+<div class="card-category">{categorie}</div>
+<div class="card-human-main" style="color:{couleur};">{principal}</div>
+<div class="card-technical-sub">{sub}</div>
+</div>
+</div>
+</div>""")
 
 
 # =====================================================================
@@ -163,7 +219,93 @@ def predire_base_foyer():
 
 
 # =====================================================================
-# 3. SIDEBAR
+# 3. GEMINI (essai de plusieurs modèles + diagnostic lisible)
+# =====================================================================
+def _post_gemini(nom, key, payload):
+    return requests.post(
+        f"{API_BASE}/models/{nom}:generateContent",
+        headers={"Content-Type": "application/json", "x-goog-api-key": key},
+        json=payload,
+        timeout=25,
+    )
+
+
+def _detail_erreur(r):
+    try:
+        msg = r.json()["error"]["message"]
+    except Exception:
+        msg = ""
+    return f"code {r.status_code}" + (f" : {msg[:110]}" if msg else "")
+
+
+def appeler_gemini(messages, key, systeme=""):
+    """Retourne (texte, None) ou (None, raison). Mémorise l'état dans la session."""
+    contents = []
+    for m in messages[-9:]:
+        role = "user" if m["role"] == "user" else "model"
+        if not contents and role == "model":
+            continue
+        contents.append({"role": role, "parts": [{"text": m["content"]}]})
+    payload = {"contents": contents}
+    if systeme:
+        payload["systemInstruction"] = {"parts": [{"text": systeme}]}
+
+    deja_ok = st.session_state.get("modele_gemini_ok")
+    candidats = [deja_ok] if deja_ok else list(MODELES_GEMINI)
+    erreurs = []
+
+    def essayer(liste):
+        for nom in liste:
+            try:
+                r = _post_gemini(nom, key, payload)
+            except Exception as e:
+                erreurs.append(f"réseau ({type(e).__name__})")
+                return None, True
+            if r.status_code == 200:
+                try:
+                    data = r.json()
+                    parts = data["candidates"][0]["content"]["parts"]
+                    texte = "".join(p.get("text", "") for p in parts).strip()
+                except Exception:
+                    texte = ""
+                if texte:
+                    st.session_state["modele_gemini_ok"] = nom
+                    return texte, False
+                erreurs.append(f"{nom} : réponse vide ou bloquée")
+                continue
+            erreurs.append(_detail_erreur(r))
+            if r.status_code in (400, 401, 403):  # clé refusée : inutile d'insister
+                return None, True
+        return None, False
+
+    texte, stop = essayer(candidats)
+    if not texte and not stop:
+        # Dernier recours : demander à Google quels modèles ce compte peut utiliser
+        try:
+            r = requests.get(f"{API_BASE}/models", headers={"x-goog-api-key": key}, timeout=15)
+            if r.status_code == 200:
+                dispo = [
+                    m["name"].split("/")[-1]
+                    for m in r.json().get("models", [])
+                    if "generateContent" in m.get("supportedGenerationMethods", [])
+                    and "flash" in m["name"]
+                    and m["name"].split("/")[-1] not in candidats
+                ]
+                texte, _ = essayer(dispo[:3])
+        except Exception:
+            pass
+
+    if texte:
+        st.session_state["gemini_statut"] = ("ok", st.session_state.get("modele_gemini_ok", ""))
+        return texte, None
+    non404 = [e for e in erreurs if "code 404" not in e]
+    raison = (non404 or erreurs or ["aucune réponse"])[0]
+    st.session_state["gemini_statut"] = ("erreur", raison)
+    return None, raison
+
+
+# =====================================================================
+# 4. SIDEBAR
 # =====================================================================
 with st.sidebar:
     st.markdown("### Centre de contrôle")
@@ -180,6 +322,9 @@ with st.sidebar:
         type="password",
         help="Sans clé, l'assistant répond en mode local, sur les sujets de la maison uniquement.",
     )
+    if api_key and st.button("Tester la connexion Gemini"):
+        t, e = appeler_gemini([{"role": "user", "content": "Réponds uniquement : ok."}], api_key)
+        st.caption("Connexion réussie." if t else f"Échec : {e}")
 
     seuil_max = st.slider("Souscription disjoncteur (kW)", 3.0, 12.0, 6.0, 0.5)
     temp_interieure = st.slider("Température ambiante (°C)", 20.0, 38.0, 30.0, 0.5)
@@ -189,7 +334,7 @@ with st.sidebar:
 
 
 # =====================================================================
-# 4. MOTEUR DE CALCUL
+# 5. MOTEUR DE CALCUL
 # =====================================================================
 JOUR0 = datetime(2000, 1, 1)
 
@@ -199,12 +344,10 @@ def at(h, m=0, jour=0):
 
 
 def hm(dt):
-    """Heure au format 05h45."""
     return dt.strftime("%Hh%M")
 
 
 def fmt(dt):
-    """05h45, avec « demain » si on a passé minuit."""
     return hm(dt) + (" demain" if dt.day > 1 else "")
 
 
@@ -239,7 +382,7 @@ debut_ve_requis = echeance - timedelta(hours=duree_charge_h)
 
 pic_apres = max(p_base + p_clim, p_base + p_ve) if surcharge else p_totale
 critique = surcharge and pic_apres > seuil_max
-souscription_conseillee = math.ceil(pic_apres * 2) / 2  # arrondi au 0,5 kW supérieur
+souscription_conseillee = math.ceil(pic_apres * 2) / 2
 
 if not surcharge:
     statut, couleur = "Tout est sous contrôle", "#2B6E4E"
@@ -257,13 +400,13 @@ else:
 
 
 # =====================================================================
-# 5. ASSISTANT : MOTEUR LOCAL + GEMINI
+# 6. ASSISTANT : MOTEUR LOCAL + CONTEXTE GEMINI
 # =====================================================================
 def has(q, tokens, mots):
     return any((m in q) if len(m) > 3 else (m in tokens) for m in mots)
 
 
-def repondre_local(prompt):
+def repondre_local(prompt, raison=None):
     q = prompt.lower().strip()
     tokens = set(re.findall(r"\w+", q))
 
@@ -343,6 +486,11 @@ def repondre_local(prompt):
     if has(q, tokens, ["bonjour", "salut", "hello", "bonsoir"]):
         return "Bonjour Farah. Dites-moi ce que vous voulez savoir sur la voiture, la clim ou la sécurité du réseau."
 
+    if raison:
+        return (
+            "Cette question dépasse le cadre de la maison et je n'ai pas réussi à joindre Gemini "
+            f"({raison}). Utilisez le bouton « Tester la connexion Gemini » dans le panneau de gauche pour vérifier la clé."
+        )
     return (
         "Je peux vous parler de la voiture, de la climatisation, de la sécurité du réseau ou du modèle de prévision. "
         "Pour les autres sujets, il faut renseigner une clé Gemini dans le panneau de gauche."
@@ -377,84 +525,6 @@ RÈGLES :
 3. N'invente aucune donnée absente de la liste."""
 
 
-def _post_gemini(nom, key, payload):
-    return requests.post(
-        f"{API_BASE}/models/{nom}:generateContent",
-        headers={"Content-Type": "application/json", "x-goog-api-key": key},
-        json=payload,
-        timeout=20,
-    )
-
-
-def _detail_erreur(r):
-    try:
-        return r.json()["error"]["message"][:140]
-    except Exception:
-        return f"code {r.status_code}"
-
-
-def appeler_gemini(messages, key):
-    """Retourne (texte, None) ou (None, message_erreur)."""
-    contents = []
-    for m in messages[-9:]:
-        role = "user" if m["role"] == "user" else "model"
-        if not contents and role == "model":
-            continue
-        contents.append({"role": role, "parts": [{"text": m["content"]}]})
-    payload = {
-        "systemInstruction": {"parts": [{"text": contexte_gemini()}]},
-        "contents": contents,
-    }
-
-    deja_ok = st.session_state.get("modele_gemini_ok")
-    candidats = [deja_ok] if deja_ok else list(MODELES_GEMINI)
-    derniere_erreur = "aucune réponse"
-
-    def essayer(liste):
-        nonlocal derniere_erreur
-        for nom in liste:
-            try:
-                r = _post_gemini(nom, key, payload)
-            except Exception as e:
-                derniere_erreur = type(e).__name__
-                return None, derniere_erreur, True
-            if r.status_code == 200:
-                try:
-                    texte = r.json()["candidates"][0]["content"]["parts"][0]["text"]
-                except Exception:
-                    derniere_erreur = "réponse vide"
-                    continue
-                st.session_state["modele_gemini_ok"] = nom
-                return texte, None, False
-            derniere_erreur = _detail_erreur(r)
-            if r.status_code != 404:   # clé invalide, quota... inutile d'insister
-                return None, derniere_erreur, True
-        return None, derniere_erreur, False
-
-    texte, err, stop = essayer(candidats)
-    if texte or stop:
-        return texte, err
-
-    # Dernier recours : demander à Google quels modèles ce compte peut utiliser
-    try:
-        r = requests.get(f"{API_BASE}/models", headers={"x-goog-api-key": key}, timeout=15)
-        if r.status_code == 200:
-            dispo = [
-                m["name"].split("/")[-1]
-                for m in r.json().get("models", [])
-                if "generateContent" in m.get("supportedGenerationMethods", [])
-                and "flash" in m["name"]
-                and "lite" not in m["name"]
-                and m["name"].split("/")[-1] not in candidats
-            ]
-            texte, err, _ = essayer(dispo[:3])
-            if texte:
-                return texte, None
-    except Exception:
-        pass
-    return None, derniere_erreur
-
-
 def afficher(container, role, contenu):
     nom = "Vous" if role == "user" else "Assistant"
     with container.chat_message(role):
@@ -462,18 +532,41 @@ def afficher(container, role, contenu):
         st.markdown(contenu)
 
 
+def entete_chat(api_key):
+    if not api_key:
+        etat = "Mode local"
+    else:
+        s = st.session_state.get("gemini_statut")
+        if s is None:
+            etat = "Gemini (clé saisie)"
+        elif s[0] == "ok":
+            etat = f"Gemini connecté ({s[1]})"
+        else:
+            etat = "Gemini injoignable, mode local"
+    return html(f"""
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+<strong style="color:#0F1E36; font-size:0.92rem;">Assistant de supervision</strong>
+<span style="font-size:0.75rem; color:#475569;">{etat}</span>
+</div>""")
+
+
 # =====================================================================
-# 6. DASHBOARD
+# 7. DASHBOARD
 # =====================================================================
 st.markdown(
-    html(
-        """
-<div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;">
-<h3 style="margin:0; color:#0F1E36; font-size:1.35rem; font-weight:700;">Smart Home Energy Orchestration</h3>
-<span style="font-size:0.8rem; color:#64748B;">Supervision prédictive multi-agents et Deep Learning (LSTM)</span>
+    html("""
+<div class="banner">
+<div>
+<h3>Smart Home Energy Orchestration</h3>
+<p>Supervision prédictive multi-agents et Deep Learning (LSTM)</p>
 </div>
-"""
-    ),
+<svg width="170" height="54" viewBox="0 0 170 54" fill="none" stroke="#C9B58F" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+<path d="M8 30 L38 8 L68 30"/><path d="M14 27 V48 H62 V27"/><rect x="26" y="32" width="10" height="16"/><rect x="44" y="32" width="10" height="9"/>
+<path d="M82 40 C92 40 94 16 105 16 S118 42 129 32 S146 14 162 22" stroke="#7FA6CF"/>
+<path d="M82 48 H164" stroke-opacity="0.5"/>
+</svg>
+</div>
+"""),
     unsafe_allow_html=True,
 )
 
@@ -482,12 +575,7 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     src = "Prévision du modèle LSTM" if ia_active else "Valeur de secours"
     st.markdown(
-        html(f"""
-<div class="user-card">
-<div class="card-category">Maison en arrière-plan</div>
-<div class="card-human-main">{activite}</div>
-<div class="card-technical-sub">{src} : {p_base:.2f} kW</div>
-</div>"""),
+        carte("maison", "Maison en arrière-plan", activite, f"{src} : {p_base:.2f} kW"),
         unsafe_allow_html=True,
     )
 
@@ -498,18 +586,10 @@ with c2:
     else:
         principal = "Chambre déjà confortable"
         sub = f"{temp_interieure}°C, consigne de {temp_cible}°C : clim inutile"
-    st.markdown(
-        html(f"""
-<div class="user-card">
-<div class="card-category">Confort</div>
-<div class="card-human-main">{principal}</div>
-<div class="card-technical-sub">{sub}</div>
-</div>"""),
-        unsafe_allow_html=True,
-    )
+    st.markdown(carte("thermo", "Confort", principal, sub), unsafe_allow_html=True)
 
 with c3:
-    couleur_ve = "#0F1E36"
+    couleur_ve, accent_ve = "#0F1E36", "#1D3557"
     if duree_charge_h == 0:
         principal = "Rien à recharger"
         sub = f"Batterie à {soc_actuel}%, cible de {soc_cible}% atteinte"
@@ -519,25 +599,22 @@ with c3:
     else:
         principal = f"Voiture prête à {hm(fin_ve)}"
         sub = f"Trop tard pour 07h30, démarrer avant {fmt(debut_ve_requis)}"
-        couleur_ve = "#B91C1C"
+        couleur_ve, accent_ve = "#B91C1C", "#B91C1C"
     st.markdown(
-        html(f"""
-<div class="user-card">
-<div class="card-category">Voiture électrique</div>
-<div class="card-human-main" style="color:{couleur_ve};">{principal}</div>
-<div class="card-technical-sub">{sub}</div>
-</div>"""),
+        carte("voiture", "Voiture électrique", principal, sub, couleur_ve, accent_ve),
         unsafe_allow_html=True,
     )
 
 with c4:
     st.markdown(
-        html(f"""
-<div class="user-card" style="border-left:4px solid {couleur};">
-<div class="card-category">Sécurité du réseau</div>
-<div class="card-human-main" style="color:{couleur};">{statut}</div>
-<div class="card-technical-sub">Limite de {seuil_max:.1f} kW, demande de {p_totale:.2f} kW</div>
-</div>"""),
+        carte(
+            "bouclier",
+            "Sécurité du réseau",
+            statut,
+            f"Limite de {seuil_max:.1f} kW, demande de {p_totale:.2f} kW",
+            couleur,
+            couleur,
+        ),
         unsafe_allow_html=True,
     )
 
@@ -558,13 +635,13 @@ with col_gauche:
                 },
                 domain={"x": [0, 1], "y": [0, 1]},
                 gauge={
-                    "axis": {"range": [0, 12], "tickwidth": 1, "tickcolor": "#CBD5E1", "nticks": 7},
+                    "axis": {"range": [0, 12], "tickwidth": 1, "tickcolor": "#94A3B8", "nticks": 7},
                     "bar": {"color": "#B91C1C" if surcharge else "#1B4D3E"},
                     "bgcolor": "#F4EFEA",
                     "borderwidth": 0,
                     "steps": [
-                        {"range": [0, seuil_max], "color": "#EAE5DC"},
-                        {"range": [seuil_max, 12], "color": "#FADBD8"},
+                        {"range": [0, seuil_max], "color": "#E3DACA"},
+                        {"range": [seuil_max, 12], "color": "#F6CFCB"},
                     ],
                     "threshold": {
                         "line": {"color": "#0F1E36", "width": 3},
@@ -591,17 +668,13 @@ with col_gauche:
                 html(f"""
 <div style="font-size:0.88rem; line-height:1.5; color:#334155;">
 <div style="color:{couleur}; font-weight:700; margin-bottom:4px;">Rien à signaler</div>
-La maison réclame {p_totale:.2f} kW pour {seuil_max:.1f} kW autorisés : il reste {marge:.2f} kW de marge.
-La clim et la recharge de la voiture peuvent fonctionner en même temps.
+<p style="margin:0 0 4px 0;">La maison réclame {p_totale:.2f} kW pour {seuil_max:.1f} kW autorisés : il reste {marge:.2f} kW de marge.</p>
+<p style="margin:0;">La clim et la recharge de la voiture peuvent fonctionner en même temps.</p>
 </div>"""),
                 unsafe_allow_html=True,
             )
         else:
-            titre = (
-                "Le disjoncteur reste menacé"
-                if critique
-                else "J'ai évité une coupure de courant"
-            )
+            titre = "Le disjoncteur reste menacé" if critique else "J'ai évité une coupure de courant"
             if critique:
                 suite = (
                     f"Même après décalage, le pic atteint {pic_apres:.2f} kW pour {seuil_max:.1f} kW autorisés. "
@@ -613,25 +686,17 @@ La clim et la recharge de la voiture peuvent fonctionner en même temps.
                 html(f"""
 <div style="font-size:0.88rem; line-height:1.5; color:#334155;">
 <div style="color:{couleur}; font-weight:700; margin-bottom:4px;">{titre}</div>
-Tout lancer en même temps demanderait {p_totale:.2f} kW, soit {surcroit:.2f} kW de plus que votre disjoncteur ({seuil_max:.1f} kW).
-La clim démarre à {hm(debut_clim)} pour que la chambre soit à {temp_cible}°C à 18h00.
-La voiture ne recharge qu'à partir de {hm(debut_ve)}, en heures creuses, et sera prête vers {fmt(fin_ve)}.
-{suite}
+<p style="margin:0 0 4px 0;">Tout lancer en même temps demanderait {p_totale:.2f} kW, soit {surcroit:.2f} kW de plus que votre disjoncteur ({seuil_max:.1f} kW).</p>
+<p style="margin:0 0 4px 0;">La clim démarre à {hm(debut_clim)} pour que la chambre soit à {temp_cible}°C à 18h00. La voiture ne recharge qu'à partir de {hm(debut_ve)}, en heures creuses, et sera prête vers {fmt(fin_ve)}.</p>
+<p style="margin:0;">{suite}</p>
 </div>"""),
                 unsafe_allow_html=True,
             )
 
 with col_droite:
     with st.container(border=True):
-        mode = "Gemini" if api_key else "Mode local"
-        st.markdown(
-            html(f"""
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-<strong style="color:#0F1E36; font-size:0.92rem;">Assistant de supervision</strong>
-<span style="font-size:0.75rem; color:#64748B;">{mode}</span>
-</div>"""),
-            unsafe_allow_html=True,
-        )
+        entete_slot = st.empty()
+        entete_slot.markdown(entete_chat(api_key), unsafe_allow_html=True)
 
         chat_box = st.container(height=265)
 
@@ -654,12 +719,40 @@ with col_droite:
             if api_key:
                 with chat_box:
                     with st.spinner("Je réfléchis..."):
-                        rep, erreur = appeler_gemini(st.session_state.messages, api_key)
+                        rep, erreur = appeler_gemini(
+                            st.session_state.messages, api_key, contexte_gemini()
+                        )
             if rep is None:
-                rep = repondre_local(prompt)
+                rep = repondre_local(prompt, erreur)
             st.session_state.messages.append({"role": "assistant", "content": rep})
+            afficher(chat_box, "assistant", rep)
+            entete_slot.markdown(entete_chat(api_key), unsafe_allow_html=True)
 
-            affichage = rep
-            if erreur:
-                affichage += f"\n\n*Gemini ne répond pas ({erreur}). Réponse en mode local.*"
-            afficher(chat_box, "assistant", affichage)
+# Fait défiler la zone de chat jusqu'au dernier message
+try:
+    components.html(
+        """
+<script>
+(function () {
+  const d = window.parent.document;
+  function go() {
+    const msgs = d.querySelectorAll('.stChatMessage');
+    if (!msgs.length) return;
+    let el = msgs[msgs.length - 1];
+    while (el) {
+      const oy = window.parent.getComputedStyle(el).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) {
+        el.scrollTop = el.scrollHeight;
+        break;
+      }
+      el = el.parentElement;
+    }
+  }
+  setTimeout(go, 100); setTimeout(go, 500);
+})();
+</script>
+""",
+        height=0,
+    )
+except Exception:
+    pass
